@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.B21" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">@color/on_brand</item>
+        <item name="colorPrimaryContainer">@color/brand_container</item>
+        <item name="colorOnPrimaryContainer">@color/on_brand_container</item>
+        <item name="colorSecondaryContainer">@color/brand_container</item>
+        <item name="colorOnSecondaryContainer">@color/on_brand_container</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar">@bool/light_bars</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="materialCardViewStyle">@style/B21.Card</item>
+    </style>
+
+    <style name="B21.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">20dp</item>
+        <item name="contentPadding">16dp</item>
+    </style>
+
+    <style name="B21.SectionTitle" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
+
+    <style name="B21.FrameButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="iconPadding">0dp</item>
+        <item name="iconGravity">textStart</item>
+    </style>
+
+    <!-- Crop screen is always dark so the photo stands out -->
+    <style name="Theme.B21.Crop" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#FFB4A9</item>
+        <item name="colorOnPrimary">#690004</item>
+        <item name="colorPrimaryContainer">#93000A</item>
+        <item name="colorOnPrimaryContainer">#FFDAD5</item>
+        <item name="colorSecondaryContainer">#93000A</item>
+        <item name="colorOnSecondaryContainer">#FFDAD5</item>
+        <item name="android:statusBarColor">#141111</item>
+        <item name="android:navigationBarColor">#141111</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

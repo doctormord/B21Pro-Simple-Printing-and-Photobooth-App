@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">B21 Print</string>
+    <string name="mode_photo">Photo</string>
+    <string name="mode_sign">Sign</string>
+    <string name="connect">Connect</string>
+    <string name="connecting">Connecting …</string>
+    <string name="connected">Connected</string>
+    <string name="searching">Searching …</string>
+    <string name="crop">Crop</string>
+    <string name="camera">Camera</string>
+    <string name="gallery">Gallery</string>
+    <string name="booth_button">Photo booth: selfie &amp; instant print</string>
+    <string name="sign_hint">Text, e.g. Crayons</string>
+    <string name="dictate">Dictate</string>
+    <string name="font_clean">Clean</string>
+    <string name="font_classic">Classic</string>
+    <string name="font_hand">Hand</string>
+    <string name="style_bold">Bold</string>
+    <string name="style_italic">Italic</string>
+    <string name="style_underline">Underline</string>
+    <string name="frame_none">No frame</string>
+    <string name="frame_line">Line</string>
+    <string name="frame_bold">Bold frame</string>
+    <string name="frame_double">Double</string>
+    <string name="frame_dashed">Dashed</string>
+    <string name="history_templates">History &amp; templates</string>
+    <string name="save_template">Save</string>
+    <string name="saved_template">Saved</string>
+    <string name="section_label">Label</string>
+    <string name="section_image">Image</string>
+    <string name="section_print">Print</string>
+    <string name="width">Width</string>
+    <string name="height">Height</string>
+    <string name="mm">mm</string>
+    <string name="width_helper">Print max. 50</string>
+    <string name="height_helper">max. 200</string>
+    <string name="offset_x">Offset left/right</string>
+    <string name="offset_y">Offset up/down</string>
+    <string name="polaroid_frame">Polaroid frame</string>
+    <string name="caption_hint">Caption (optional)</string>
+    <string name="raster_photo">Photo</string>
+    <string name="raster_dots">Dots</string>
+    <string name="raster_text">Text/logo</string>
+    <string name="brightness">Brightness</string>
+    <string name="contrast">Contrast</string>
+    <string name="reset">Reset</string>
+    <string name="invert">Invert</string>
+    <string name="density">Print density</string>
+    <string name="paper_type">Paper type</string>
+    <string name="copies">Copies</string>
+    <string name="print">Print</string>
+    <string name="printing">Printing …</string>
+    <string name="print_need_printer">Connect a printer first</string>
+    <string name="print_need_text">Enter text first</string>
+    <string name="print_need_photo">Choose a photo first</string>
+    <string name="own_size">custom size</string>
+    <string name="size_round">Ø %1$s mm</string>
+    <string name="size_rect">%1$s × %2$s mm</string>
+    <string name="window_info">%1$s: the frame is pre-printed, only the window is printed (%2$s × %3$s mm). If the photo is off, adjust it here.</string>
+    <string name="crop_for">for %1$s · %2$s</string>
+    <string name="template_saved">Saved as template</string>
+    <string name="template_removed">Template removed</string>
+    <string name="speech_prompt">What should go on the label?</string>
+    <string name="speech_unavailable">Voice input not available</string>
+    <string name="history_entry">%1$s · %2$s · frame: %3$s</string>
+    <string name="templates">Templates</string>
+    <string name="recently_printed">Recently printed</string>
+    <string name="history_empty">Nothing printed yet. Printed signs show up here (last 50).</string>
+    <string name="history_help">Tap = use · ☆ = save as template · long press = delete</string>
+    <string name="choose_printer">Choose printer</string>
+    <string name="booth_no_printer">Printer not connected yet, printing works once it is</string>
+    <string name="file_unreadable">File not readable</string>
+    <string name="flash_title">Flash firmware?</string>
+    <string name="flash_message">File: %1$s\nSize: %2$d bytes\nVersion: %3$s\n\nDo NOT switch off or disconnect the printer until the update is finished. A failed update can make the printer unusable. Continue?</string>
+    <string name="flash">Flash</string>
+    <string name="cancel">Cancel</string>
+    <string name="flash_no_version">Version not found in the file name</string>
+    <string name="flash_progress_title">Flashing firmware</string>
+    <string name="flash_starting">Starting …\nDo not disconnect the printer.</string>
+    <string name="flash_block">Sending block %1$d / %2$d\nDo not disconnect the printer.</string>
+    <string name="flash_done_title">Done</string>
+    <string name="flash_done">Firmware transferred. The printer reboots. Then insert a roll and test.</string>
+    <string name="flash_failed_title">Failed</string>
+    <string name="flash_failed">%1$s\n\nThe old firmware should still be active (checked before commit). See the log.</string>
+    <string name="no_file_picker">No file picker</string>
+    <string name="paper_gap">Labels</string>
+    <string name="paper_black">Black mark</string>
+    <string name="paper_continuous">Continuous</string>
+    <string name="paper_transparent">Transparent</string>
+    <string name="crop_title">Choose crop</string>
+    <string name="crop_help">Drag corners = size · drag the middle = move</string>
+    <string name="crop_sticker">Label format</string>
+    <string name="crop_free">Free</string>
+    <string name="rotate">Rotate</string>
+    <string name="apply">Apply</string>
+    <string name="close">Close</string>
+    <string name="flash_light">Flash</string>
+    <string name="flash_on">Flash on</string>
+    <string name="flash_off">Flash off</string>
+    <string name="switch_camera">Switch camera</string>
+    <string name="booth_hint">Press the shutter and smile!</string>
+    <string name="shutter">Take photo</string>
+    <string name="timer_off">Now</string>
+    <string name="timer_seconds">%1$d s</string>
+    <string name="booth_review">Like it?</string>
+    <string name="delete">Delete</string>
+    <string name="print_again">Print again</string>
+    <string name="next_photo">Next photo</string>
+    <string name="booth_printing">Printing …</string>
+    <string name="booth_done">Done, enjoy!</string>
+    <string name="print_error">Print error: %1$s</string>
+    <string name="still_printing">Still printing …</string>
+    <string name="camera_permission">The photo booth needs camera permission</string>
+    <string name="camera_unavailable">Camera not available: %1$s</string>
+    <string name="no_camera_image">No camera image</string>
+    <string name="printer_not_connected">Printer not connected</string>
+    <string name="label_freestyle">Freestyle</string>
+    <string name="label_memory_film">Memory Film</string>
+    <string name="label_polaroid">Polaroid</string>
+    <string name="label_polaroid_xl">Polaroid XL</string>
+    <string name="label_polaroid_mini">Polaroid mini</string>
+    <string name="label_circle">Circle Ø %1$s</string>
+    <string name="label_standard">Standard</string>
+    <string name="label_square">Square</string>
+    <string name="label_wide">Wide</string>
+    <string name="label_tall">Tall</string>
+    <string name="label_medium">Medium</string>
+    <string name="label_square_m">Square M</string>
+    <string name="label_tall_m">Tall M</string>
+    <string name="label_small">Small</string>
+    <string name="label_square_s">Square S</string>
+    <string name="label_mini">Mini</string>
+    <string name="label_square_xs">Square XS</string>
+    <string name="label_narrow">Narrow</string>
+    <string-array name="font_names">
+        <item>@string/font_clean</item>
+        <item>@string/font_classic</item>
+        <item>@string/font_hand</item>
+    </string-array>
+    <string-array name="frame_names">
+        <item>@string/frame_none</item>
+        <item>@string/frame_line</item>
+        <item>@string/frame_bold</item>
+        <item>@string/frame_double</item>
+        <item>@string/frame_dashed</item>
+    </string-array>
+</resources>

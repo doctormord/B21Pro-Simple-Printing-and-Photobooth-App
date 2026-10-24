@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shutter: white ring, red core -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <layer-list>
+            <item><shape android:shape="oval"><solid android:color="#66FFFFFF" /></shape></item>
+            <item android:left="8dp" android:top="8dp" android:right="8dp" android:bottom="8dp"><shape android:shape="oval"><solid android:color="#88555555" /></shape></item>
+        </layer-list>
+    </item>
+    <item android:state_pressed="true">
+        <layer-list>
+            <item><shape android:shape="oval"><solid android:color="#FFFFFF" /></shape></item>
+            <item android:left="14dp" android:top="14dp" android:right="14dp" android:bottom="14dp"><shape android:shape="oval"><solid android:color="@color/brand" /></shape></item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item><shape android:shape="oval"><solid android:color="#FFFFFF" /></shape></item>
+            <item android:left="8dp" android:top="8dp" android:right="8dp" android:bottom="8dp"><shape android:shape="oval"><solid android:color="@color/brand" /></shape></item>
+        </layer-list>
+    </item>
+</selector>

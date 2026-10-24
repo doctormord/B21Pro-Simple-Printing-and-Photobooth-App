@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="paper">
+        <item>@string/paper_gap</item>
+        <item>@string/paper_black</item>
+        <item>@string/paper_continuous</item>
+        <item>@string/paper_transparent</item>
+    </string-array>
+</resources>

@@ -78,8 +78,9 @@ measurement. The intended darkness is linear in the photo tone (tone 128 prints 
 from a tone-sweep print, darker targets closer to the screen's sRGB curve looked grey and flat on
 thermal paper.
 
-Halftone dots and TV scanlines still use a simple dot-gain formula; the coarse looks print close to
-their nominal tone and are not corrected.
+Halftone dots and TV scanlines still use a simple dot-gain formula. Line screen, Macintosh, Amiga
+and fax are built from thick lines or blocks of dots, print close to their nominal tone and are not
+corrected.
 
 ## Settings
 
@@ -173,21 +174,23 @@ cannot replace each other.
 Long-press the *B21 Print* title. With a printer connected, the console sends raw text commands to
 the BLE characteristic and shows every reply. It also offers:
 
+<img src="docs/debug-console.png" width="45%" alt="Debug console">
+
 - **Test chart**: loads a chart sized to the current photo area (window, instant frame or circle)
   into the preview, as if it were a cropped photo: tone wedge, gradient, dither patches, line and
   checkerboard resolution, Siemens star, rings and microtext. Works without a printer.
-- **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
-  the log at the bottom of the main screen.
 - **Calibration**: a 5 × 5 chart of flat tones, already dithered and printed dot for dot without
   any image processing, with the density and speed printed on it. `tools/calib.py` reads a photo of
   it and reports how dark each patch printed; those numbers are the tables in `PrintCurve.kt`.
 - **Tone sweep**: prints the current photo in four vertical stripes with different tone targets
   (gamma 1.0, 1.3, 1.6, 2.0, labelled at the top), to choose the target from one print.
-- **Log** with copy and clear buttons; it also shows the app's own log lines while open.
+- **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
+  the console log and the log at the bottom of the main screen.
 - **Flash firmware**: sends a `.bin` firmware image over Bluetooth. The version is taken from the
   file name (e.g. `B21_Pro_3.10.bin` → 3.10). The printer verifies the image before committing it;
   a rejected or interrupted transfer leaves the old firmware running. Do not switch the printer off
   during the update.
+- **Log** with copy and clear buttons; it also shows the app's own log lines while open.
 
 <img src="docs/test-chart.png" width="45%" alt="Test chart on a Memory Film label">
 

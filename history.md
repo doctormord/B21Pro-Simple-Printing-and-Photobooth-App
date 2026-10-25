@@ -10,6 +10,7 @@ pipeline.
   in amber. It opens the booth and leaves the current mode selected. Saves a full row on phones.
 - *Fast* is now called *Coarse*, which describes what it does to photos.
 - The version number is shown next to the title.
+- All README screenshots retaken, including the nine raster looks with the measured tone curve.
 
 ## 1.3.8 (2026-10-25)
 

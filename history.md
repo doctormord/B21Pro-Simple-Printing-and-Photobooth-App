@@ -4,6 +4,17 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.6 (2026-10-25)
+
+Calibration charts for all fine densities (1–5) and for fast at densities 1, 3 and 5 replace the
+interpolated tables. Fine is one smooth family, darker with each density step (1 and 2 nearly
+equal). Fast is different in kind: single dots print two to three times darker (tone 234: 0.15–0.20
+instead of 0.065), and around 50 % coverage the curve turns back (density 1: tone 149 → 0.72, tone
+127 → 0.41). The 50 % pattern alternates dots, and at fast speed those apparently get too little
+energy. That reversal is what made photos at fast speed look blotchy. The correction uses the
+monotone envelope of each curve, so it never aims into the dip; at fast density 3 it jumps from
+dither input 156 straight to 110.
+
 ## 1.3.5 (2026-10-25)
 
 ### Measured tone curve instead of a dot-gain formula

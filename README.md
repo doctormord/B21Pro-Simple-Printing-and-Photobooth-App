@@ -72,7 +72,7 @@ Close-up, about twice the printed size:
 Thermal dots spread into their neighbours, and not evenly: measured with the calibration chart,
 isolated dots print about as dark as their share of the area, but from roughly 25 % coverage on they
 merge, and below tone ~110 everything prints solid black. The photo look therefore corrects tones
-with a table measured per print density (`PrintCurve.kt`) instead of a formula: for each photo tone
+with a table measured per print density and speed (`PrintCurve.kt`) instead of a formula: for each photo tone
 it picks the dither input that prints the intended darkness, and the preview uses the same
 measurement. The intended darkness lies between a linear mapping and the screen's sRGB curve
 (gamma 1.6), which suits small thermal prints.
@@ -97,8 +97,9 @@ their nominal tone and are not corrected.
 - **Overscan** (round labels): print 2 mm instead of 0.6 mm past the rim. Memory Film has no
   overscan: its frame is thermal paper too, and print outside the window would grey it.
 - **Print density**: heat level sent to the printer. 1–2 suits photos on original rolls.
-- **Speed**: *Fine* for photos. At *Fast* the printer gives each row less time, solid areas such as
-  text still print cleanly, but single dither dots break up into noise.
+- **Speed**: *Fine* for photos. At *Fast* single dots print much larger, and dense alternating
+  dot patterns come out lighter than lighter tones; the tone correction works around that, but
+  photos keep a coarser, wormy texture. Text prints the same at both speeds.
 - **Paper type**: how the printer finds the next label (gap, black mark, continuous, transparent).
 
 ![Soft edge](docs/soft-edge.png)

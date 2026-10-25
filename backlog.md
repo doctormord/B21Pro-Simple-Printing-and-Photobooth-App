@@ -7,14 +7,12 @@ Open items, roughly in order of priority.
 - **Memory Film bleed.** Overscan is off for window labels since 1.3.1, but the default 0.6 mm
   bleed still prints onto the frame, which is thermal paper too. Check on a print whether it shows
   and whether the offset fine-tuning makes it unnecessary.
-- **Force fine speed for photos.** Fast mode breaks up dithered photos (see history.md). Either
-  print photos and the booth at fine regardless of the toggle and keep fast for signs, or show the
-  toggle only in sign mode.
+- **Fast speed for photos.** Tones are corrected since 1.3.6, but the texture stays coarse. Decide
+  after a print whether photos and the booth should always use fine.
 
 ## Print tuning (needs paper)
 
-- Measure densities 2, 3 and 4 with the calibration chart; `PrintCurve` interpolates them from 1
-  and 5 for now. Fast speed has no curve at all.
+- Fast speed densities 2 and 4 are interpolated from 1, 3 and 5.
 - Check the tone target (gamma 1.6 in `PrintCurve`) on real photos; the brightness slider covers
   personal taste, the default should look right at 0.
 - Calibrate halftone dots and scanlines the same way; they still use the old dot-gain formula.

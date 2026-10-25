@@ -213,7 +213,7 @@ class MainActivity : AppCompatActivity() {
         toggleSpeed.check(if (prefs.getInt("speed", 1) == 0) R.id.speedFast else R.id.speedFine)
         toggleSpeed.addOnButtonCheckedListener { _, id, checked ->
             if (checked) prefs.edit().putInt("speed", if (id == R.id.speedFast) 0 else 1).apply()
-            if (checked && calibration) loadTestChart(calibrate = true)
+            if (checked) { if (calibration) loadTestChart(calibrate = true) else scheduleRender() }
         }
 
         // Label
@@ -685,6 +685,7 @@ class MainActivity : AppCompatActivity() {
             softEdge = switchSoftEdge.isChecked,
             overscan = switchOverscan.isChecked && label.round,
             density = sliderDensity.value.toInt(),
+            fast = prefs.getInt("speed", 1) == 0,
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,

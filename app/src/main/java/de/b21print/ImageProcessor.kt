@@ -36,6 +36,7 @@ object ImageProcessor {
         val overscan: Boolean = false,
         // Printer density 1..5; the photo raster corrects tones with the curve measured for it
         val density: Int = 3,
+        val fast: Boolean = false,
     )
 
     // bits/width/height: what is printed (at most the print head width)
@@ -131,7 +132,7 @@ object ImageProcessor {
             if (o.caption.isNotBlank()) drawCaption(bits, w, h, area, o.caption)
         }
 
-        val curve = if (o.raster == Raster.PHOTO) o.density else null
+        val curve = if (o.raster == Raster.PHOTO) o else null
         return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor, curve))
     }
 
@@ -155,7 +156,7 @@ object ImageProcessor {
 
     private fun composePreview(
         bits: ByteArray, w: Int, h: Int, labelW: Int, headLeft: Int, window: PhotoWindow?, frameColor: Int?,
-        curveDensity: Int? = null,
+        curve: Options? = null,
     ): Bitmap {
         val out = IntArray(labelW * h) { Color.WHITE }
         if (window != null && frameColor != null) {
@@ -164,11 +165,11 @@ object ImageProcessor {
             val r = mmToPx(window.x + window.w); val b = mmToPx(window.y + window.h)
             for (y in t until minOf(b, h)) for (x in l until minOf(r, labelW)) out[y * labelW + x] = Color.WHITE
         }
-        if (curveDensity != null) {
+        if (curve != null) {
             // Photo raster: show each spot as dark as the measured print curve says for its local
             // dot coverage (3 × 3), so the preview matches the paper
             val shade = IntArray(10) { n ->
-                val r = 1f - PrintCurve.darkness(curveDensity, 255f * (1f - n / 9f))
+                val r = 1f - PrintCurve.darkness(curve.density, curve.fast, 255f * (1f - n / 9f))
                 val s = if (r <= 0.0031308f) r * 12.92f else 1.055f * r.toDouble().pow(1 / 2.4).toFloat() - 0.055f
                 val g = (255 * s).toInt().coerceIn(0, 255)
                 Color.rgb(g, g, g)
@@ -417,7 +418,7 @@ object ImageProcessor {
         val photo = o.raster != Raster.TEXT
         // Dot gain only matters for patterns of single dots; coarse cells and thick lines print true
         val fine = o.raster == Raster.DOTS || o.raster == Raster.SCANLINES || o.raster == Raster.SCANLINES_WIDE
-        val curve = PrintCurve.lut(o.density)
+        val curve = PrintCurve.lut(o.density, o.fast)
 
         // Unsharp mask (3×3); kept light so scaled high-contrast edges do not bloom at full heat
         val src = gray.copyOf()

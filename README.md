@@ -19,7 +19,7 @@ for tablets.
 - NB835 *Memory Film* labels with a pre-printed frame: only the window is printed, with a
   per-label offset that is remembered
 - Round labels and Memory Film print 0.6 mm past the edge so a slightly shifted roll leaves no
-  white gap; *Overscan* raises this to 2 mm
+  white gap; on round labels *Overscan* raises this to 2 mm
 
 **Signs**
 - Short text, centered and sized automatically, 1–3 lines
@@ -85,7 +85,8 @@ corrected.
   paper white.
 - **Invert**: swap black and white.
 - **Soft edge**: fade to white over the outer sixth of the photo area.
-- **Overscan**: print 2 mm instead of 0.6 mm past the window or circle edge.
+- **Overscan** (round labels): print 2 mm instead of 0.6 mm past the rim. Memory Film has no
+  overscan: its frame is thermal paper too, and print outside the window would grey it.
 - **Print density**: heat level sent to the printer. 1–2 suits photos on original rolls.
 - **Speed**: *Fine* for photos. At *Fast* the printer gives each row less time, solid areas such as
   text still print cleanly, but single dither dots break up into noise.

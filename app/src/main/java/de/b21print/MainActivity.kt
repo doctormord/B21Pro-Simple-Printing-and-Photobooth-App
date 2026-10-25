@@ -330,7 +330,7 @@ class MainActivity : AppCompatActivity() {
         show(R.id.windowTuning, win)
         show(R.id.switchInstant, photo && !win && !selectedLabel.round)
         show(R.id.switchSoftEdge, photo)
-        show(R.id.switchOverscan, photo && (win || selectedLabel.round))
+        show(R.id.switchOverscan, photo && selectedLabel.round)
         show(R.id.captionLayout, photo && !win && switchInstant.isChecked)
     }
 
@@ -668,7 +668,7 @@ class MainActivity : AppCompatActivity() {
             invert = switchInvert.isChecked,
             instant = switchInstant.isChecked && !label.round,
             softEdge = switchSoftEdge.isChecked,
-            overscan = switchOverscan.isChecked,
+            overscan = switchOverscan.isChecked && label.round,
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,

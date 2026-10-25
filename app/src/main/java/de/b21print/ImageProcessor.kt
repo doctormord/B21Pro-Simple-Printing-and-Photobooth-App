@@ -30,7 +30,8 @@ object ImageProcessor {
         val offsetYMm: Double = 0.0,
         // The photo fades to white towards the edge of its area (circle on round labels)
         val softEdge: Boolean = false,
-        // Print further past the window / circle rim, for rolls that sit a bit off
+        // Round labels: print further past the rim, for rolls that sit a bit off. Not for windows:
+        // the pre-printed frame is thermal paper too, overscan would grey it.
         val overscan: Boolean = false,
     )
 
@@ -81,7 +82,7 @@ object ImageProcessor {
         val canvas = Canvas(canvasBmp)
         canvas.drawColor(Color.WHITE)
 
-        val bleed = if (o.overscan) OVERSCAN_MM else BLEED_MM
+        val bleed = if (o.overscan && round) OVERSCAN_MM else BLEED_MM
         fun windowRect(b: Double) = Rect(
             mmToPx(window!!.x - b + o.offsetXMm) - headLeft,
             mmToPx(window.y - b + o.offsetYMm),

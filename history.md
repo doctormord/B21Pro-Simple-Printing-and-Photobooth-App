@@ -4,6 +4,11 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.1 (2026-10-25)
+
+- Overscan only applies to round labels. On Memory Film the frame is thermal paper as well, so
+  printing 2 mm past the window greyed it.
+
 ## 1.3 (2026-10-25)
 
 ### Raster looks
@@ -29,7 +34,8 @@ after it has been scaled to 300 dpi, so the printer receives exactly the pattern
   ends at the visible edge (window or rim), not at the bleed.
 - Round labels used to be clipped hard at the circle. They now print past the rim like bleed in
   offset printing, so a shifted roll does not leave a white crescent. 0.6 mm by default, 2 mm with
-  *Overscan*, because rolls can sit up to about ±2 mm off.
+  *Overscan*, because rolls can sit up to about ±2 mm off. 1.3 also applied overscan to the Memory
+  Film window, which turned out to be a mistake (see 1.3.1).
 
 ### UI
 - Paper type became a choice dialog. The dropdown popup had no room to open above the print bar.

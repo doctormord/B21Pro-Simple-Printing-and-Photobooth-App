@@ -4,9 +4,9 @@ Open items, roughly in order of priority.
 
 ## Fixes
 
-- **No overscan on Memory Film.** The frame is printed on the same thermal paper, so anything that
-  lands outside the window shows as a grey fringe on it. Hide the *Overscan* switch for window
-  labels and ignore the option there; check whether the default 0.6 mm bleed should go as well.
+- **Memory Film bleed.** Overscan is off for window labels since 1.3.1, but the default 0.6 mm
+  bleed still prints onto the frame, which is thermal paper too. Check on a print whether it shows
+  and whether the offset fine-tuning makes it unnecessary.
 - **Force fine speed for photos.** Fast mode breaks up dithered photos (see history.md). Either
   print photos and the booth at fine regardless of the toggle and keep fast for signs, or show the
   toggle only in sign mode.

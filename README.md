@@ -112,8 +112,15 @@ that. With a patched printer firmware they print normally.
 Download the APK from the [releases](../../releases) and install it (allow installing from unknown
 sources). Then tap *Connect*; the app scans for printers whose name starts with `B21`.
 
-The release APK is signed with a debug key. A build signed with a different key cannot be
-installed over it; uninstall first.
+From 1.3.1 on, release APKs are signed with the project's release key. Certificate SHA-256:
+
+```
+d0:03:0d:5d:c9:1c:a5:ae:65:1e:fc:24:09:15:70:18:31:2d:6a:02:6d:2c:f7:10:bc:c4:dc:c1:5f:a8:f6:d2
+```
+
+Versions 1.0 and 1.3 were signed with a debug key. Android does not install an update signed with
+a different key, so uninstall the old version once before installing 1.3.1. This resets the app's
+settings, sign history, templates and Memory Film offsets.
 
 ## Build
 

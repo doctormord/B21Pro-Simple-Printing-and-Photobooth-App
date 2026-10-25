@@ -49,7 +49,7 @@ object Booth {
         val photoAspect: Float,
         val options: ImageProcessor.Options,
         val density: Int,
-        val speed: Int,
+        val twoColorRoll: Boolean,
         val labelType: Int,
         val copies: Int,
     )
@@ -402,8 +402,7 @@ class BoothActivity : AppCompatActivity() {
         txtStatus.setText(R.string.booth_printing)
         scope.launch {
             val ok = try {
-                p.speed = cfg.speed
-                p.print(r.bits, r.width, r.height, cfg.density, cfg.labelType, cfg.copies) { f ->
+                p.printResult(r, cfg.twoColorRoll, cfg.density, cfg.labelType, cfg.copies) { f ->
                     runOnUiThread { progress.setProgressCompat((f * 1000).toInt(), true) }
                 }
                 true

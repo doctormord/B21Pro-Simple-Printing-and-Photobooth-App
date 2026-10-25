@@ -37,14 +37,25 @@ object ImageProcessor {
         val overscan: Boolean = false,
         // Printer density 1..5; the photo raster corrects tones with the curve measured for it
         val density: Int = 3,
-        val fast: Boolean = false,
         // Photo raster: target tone curve of the print (see PrintCurve)
         val toneGamma: Double = PrintCurve.DEFAULT_GAMMA,
+        val ink: Ink = Ink.MONO,
+        // RED_BLACK: the band of image tones (0 = black, 1 = white) that prints red
+        val redLo: Float = 0.5f,
+        val redHi: Float = 1f,
     )
 
-    // bits/width/height: what is printed (at most the print head width)
+    // MONO: 1-bit dots. GRAY: the printer's 16-level mode, photo raster only (the other looks are
+    // 1-bit patterns by nature and stay MONO). RED_BLACK: 1-bit dots on a two-colour roll, each red or black.
+    enum class Ink { MONO, GRAY, RED_BLACK }
+
+    // bits/width/height: what is printed (at most the print head width), 1 = dot.
+    // levels: GRAY only, 0 = white .. 15 = black. red: RED_BLACK only, 1 = the dot in bits is red.
     // preview: the whole label as it looks after printing
-    class Result(val bits: ByteArray, val width: Int, val height: Int, val preview: Bitmap)
+    class Result(
+        val bits: ByteArray, val width: Int, val height: Int, val preview: Bitmap,
+        val levels: ByteArray? = null, val red: ByteArray? = null,
+    )
 
     // Bleed into the pre-printed frame / past the circle so no white gap remains
     private const val BLEED_MM = 0.6
@@ -121,22 +132,97 @@ object ImageProcessor {
         val px = IntArray(w * h)
         canvasBmp.getPixels(px, 0, w, 0, 0, w, h)
         val fade = if (src != null && o.softEdge) softEdge(w, h, area, edge, round) else null
-        val bits = toBits(px, w, h, area, o, fade)
+        val ink = inkFor(o)
+        val gray = luminance(px)
+        val tone = if (ink == Ink.RED_BLACK) FloatArray(w * h) else null
+        prepare(gray, w, h, area, o, fade, ink, tone)
+        val levels = if (ink == Ink.GRAY) toLevels(gray, w, h) else null
+        val bits = levels?.let { l -> ByteArray(w * h) { if (l[it] > 0) 1 else 0 } } ?: toBits(gray, w, h, o)
+        val red = tone?.let { redMask(bits, it, w, h, o) }
         canvasBmp.recycle()
 
         if (o.instant && window == null) {
-            // Thin line around the photo so bright images still stand out
+            // Thin line around the photo so bright images still stand out; always solid black
+            val line = ByteArray(w * h)
             for (x in area.left until area.right) {
-                bits[area.top * w + x] = 1; bits[(area.bottom - 1) * w + x] = 1
+                line[area.top * w + x] = 1; line[(area.bottom - 1) * w + x] = 1
             }
             for (y in area.top until area.bottom) {
-                bits[y * w + area.left] = 1; bits[y * w + area.right - 1] = 1
+                line[y * w + area.left] = 1; line[y * w + area.right - 1] = 1
             }
-            if (o.caption.isNotBlank()) drawCaption(bits, w, h, area, o.caption)
+            if (o.caption.isNotBlank()) drawCaption(line, w, h, area, o.caption)
+            for (i in line.indices) if (line[i].toInt() != 0) {
+                bits[i] = 1; levels?.set(i, 15); red?.set(i, 0)
+            }
         }
 
         val curve = if (o.raster == Raster.PHOTO) o else null
-        return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor, curve))
+        return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor, curve, levels, red),
+            levels, red)
+    }
+
+    fun inkFor(o: Options) = if (o.ink == Ink.GRAY && o.raster != Raster.PHOTO) Ink.MONO else o.ink
+
+    // 16-level error diffusion (Floyd-Steinberg): 0 = white .. 15 = black
+    private fun toLevels(gray: FloatArray, w: Int, h: Int): ByteArray {
+        val out = ByteArray(w * h)
+        for (y in 0 until h) for (x in 0 until w) {
+            val i = y * w + x
+            val v = gray[i].coerceIn(0f, 255f)
+            val l = Math.round((255f - v) / 17f).coerceIn(0, 15)
+            out[i] = l.toByte()
+            val err = v - (255f - 17f * l)
+            if (x + 1 < w) gray[i + 1] += err * 7 / 16
+            if (y + 1 < h) {
+                if (x > 0) gray[i + w - 1] += err * 3 / 16
+                gray[i + w] += err * 5 / 16
+                if (x + 1 < w) gray[i + w + 1] += err / 16
+            }
+        }
+        return out
+    }
+
+    // Which dots print red: those whose image tone lies in the red band. The tone is blurred first,
+    // so the colours form areas instead of changing dot by dot: next to a black dot a red one blackens
+    // (the heat spreads), and fine red/black mixtures print as a muddy dark brown.
+    // The band edges are soft, like split toning: across RED_FEATHER of the tone range the share of red
+    // rises, mixed by an ordered pattern of 2 × 2-dot cells (coarse on purpose, see above).
+    private fun redMask(bits: ByteArray, tone: FloatArray, w: Int, h: Int, o: Options): ByteArray {
+        val t = boxBlur(tone, w, h, 3)
+        val f = RED_FEATHER * 255f
+        val lo = o.redLo * 255f; val hi = o.redHi * 255f
+        // A band edge at the end of the range is not an edge: tones there are fully red
+        fun ramp(d: Float) = (d / f + 0.5f).coerceIn(0f, 1f)
+        return ByteArray(w * h) { i ->
+            if (bits[i].toInt() == 0) return@ByteArray 0
+            val share = (if (o.redLo <= 0f) 1f else ramp(t[i] - lo)) * (if (o.redHi >= 1f) 1f else ramp(hi - t[i]))
+            val cell = ((i / w) shr 1 and 3) * 4 + ((i % w) shr 1 and 3)
+            if (share > (BAYER4[cell] + 0.5f) / 16f) 1 else 0
+        }
+    }
+
+    private const val RED_FEATHER = 0.12f
+
+    private fun boxBlur(v: FloatArray, w: Int, h: Int, r: Int): FloatArray {
+        val tmp = FloatArray(w * h)
+        for (y in 0 until h) {
+            var s = 0f
+            for (x in -r..r) s += v[y * w + x.coerceIn(0, w - 1)]
+            for (x in 0 until w) {
+                tmp[y * w + x] = s / (2 * r + 1)
+                s += v[y * w + (x + r + 1).coerceAtMost(w - 1)] - v[y * w + (x - r).coerceAtLeast(0)]
+            }
+        }
+        val out = FloatArray(w * h)
+        for (x in 0 until w) {
+            var s = 0f
+            for (y in -r..r) s += tmp[y.coerceIn(0, h - 1) * w + x]
+            for (y in 0 until h) {
+                out[y * w + x] = s / (2 * r + 1)
+                s += tmp[(y + r + 1).coerceAtMost(h - 1) * w + x] - tmp[(y - r).coerceAtLeast(0) * w + x]
+            }
+        }
+        return out
     }
 
     // The same photo with several tone targets side by side in vertical stripes, each labelled with
@@ -150,13 +236,21 @@ object ImageProcessor {
         val labelW = mmToPx(labelWmm)
         val top = (if (window != null) mmToPx(window.y) else 0) + mmToPx(1.5)
         val bits = ByteArray(w * h)
+        val levels = parts[0].levels?.let { ByteArray(w * h) }
+        val red = parts[0].red?.let { ByteArray(w * h) }
         for ((k, part) in parts.withIndex()) {
             val x0 = k * w / parts.size; val x1 = (k + 1) * w / parts.size
-            for (y in 0 until h) System.arraycopy(part.bits, y * w + x0, bits, y * w + x0, x1 - x0)
-            TestChart.stamp(bits, w, h, x0 + mmToPx(1.0), top, "%.1f".format(Locale.ROOT, gammas[k]), labelW)
+            for ((dst, src) in listOf(bits to part.bits, levels to part.levels, red to part.red)) {
+                if (dst != null && src != null) for (y in 0 until h) System.arraycopy(src, y * w + x0, dst, y * w + x0, x1 - x0)
+            }
+            val label = "%.1f".format(Locale.ROOT, gammas[k])
+            TestChart.stamp(bits, w, h, x0 + mmToPx(1.0), top, label, labelW)
+            levels?.let { TestChart.stamp(it, w, h, x0 + mmToPx(1.0), top, label, labelW, 15) }
+            red?.let { TestChart.stamp(it, w, h, x0 + mmToPx(1.0), top, label, labelW, 0) }
         }
         val curve = if (o.raster == Raster.PHOTO) o else null
-        return Result(bits, w, h, composePreview(bits, w, h, labelW, (labelW - w) / 2, window, frameColor, curve))
+        return Result(bits, w, h, composePreview(bits, w, h, labelW, (labelW - w) / 2, window, frameColor, curve, levels, red),
+            levels, red)
     }
 
     // Soft frame: how much of the photo remains (1) or fades to white (0) over the outer ~12 % of
@@ -179,7 +273,7 @@ object ImageProcessor {
 
     private fun composePreview(
         bits: ByteArray, w: Int, h: Int, labelW: Int, headLeft: Int, window: PhotoWindow?, frameColor: Int?,
-        curve: Options? = null,
+        curve: Options? = null, levels: ByteArray? = null, red: ByteArray? = null,
     ): Bitmap {
         val out = IntArray(labelW * h) { Color.WHITE }
         if (window != null && frameColor != null) {
@@ -188,13 +282,39 @@ object ImageProcessor {
             val r = mmToPx(window.x + window.w); val b = mmToPx(window.y + window.h)
             for (y in t until minOf(b, h)) for (x in l until minOf(r, labelW)) out[y * labelW + x] = Color.WHITE
         }
+        fun done() = Bitmap.createBitmap(out, labelW, h, Bitmap.Config.ARGB_8888).let {
+            if (window != null && frameColor != null && window.filmText) decorateFilm(it, window) else it
+        }
+        if (levels != null) {
+            // Gray mode: each level as the darkness it aims for (not yet measured on paper)
+            val shade = IntArray(16) { l -> val g = (255 * srgb(1f - l / 15f)).toInt().coerceIn(0, 255); Color.rgb(g, g, g) }
+            for (y in 0 until h) for (x in 0 until w) {
+                val l = levels[y * w + x].toInt()
+                if (l > 0) out[y * labelW + headLeft + x] = shade[l]
+            }
+            return done()
+        }
+        if (red != null) {
+            // Red/black: local coverage of each ink (3 × 3), mixed into the paper colour
+            for (y in 0 until h) for (x in 0 until w) {
+                var nk = 0; var nr = 0
+                for (dy in -1..1) for (dx in -1..1) {
+                    val i = (y + dy).coerceIn(0, h - 1) * w + (x + dx).coerceIn(0, w - 1)
+                    if (bits[i].toInt() != 0) { if (red[i].toInt() != 0) nr++ else nk++ }
+                }
+                if (nk + nr == 0) continue
+                val k = nk / 9f; val r = nr / 9f
+                fun ch(redInk: Float) = (255 * srgb((1f - k - r * redInk).coerceIn(0f, 1f))).toInt()
+                out[y * labelW + headLeft + x] = Color.rgb(ch(0.15f), ch(0.85f), ch(0.8f))
+            }
+            return done()
+        }
         if (curve != null) {
             // Photo raster: show each spot as dark as the measured print curve says for its local
             // dot coverage (3 × 3), so the preview matches the paper
             val shade = IntArray(10) { n ->
-                val r = 1f - PrintCurve.darkness(curve.density, curve.fast, 255f * (1f - n / 9f))
-                val s = if (r <= 0.0031308f) r * 12.92f else 1.055f * r.toDouble().pow(1 / 2.4).toFloat() - 0.055f
-                val g = (255 * s).toInt().coerceIn(0, 255)
+                val r = 1f - PrintCurve.darkness(curve.density, 255f * (1f - n / 9f))
+                val g = (255 * srgb(r)).toInt().coerceIn(0, 255)
                 Color.rgb(g, g, g)
             }
             for (y in 0 until h) for (x in 0 until w) {
@@ -205,9 +325,7 @@ object ImageProcessor {
                 }
                 if (n > 0) out[y * labelW + headLeft + x] = shade[n]
             }
-            return Bitmap.createBitmap(out, labelW, h, Bitmap.Config.ARGB_8888).let {
-                if (window != null && frameColor != null) decorateFilm(it, window) else it
-            }
+            return done()
         }
         // Simulate the printed dot: each black cell bleeds a little into its neighbours, so the
         // preview darkens by the same amount the tones were pre-lightened for. Preview ≈ print.
@@ -228,10 +346,11 @@ object ImageProcessor {
                 }
             }
         }
-        return Bitmap.createBitmap(out, labelW, h, Bitmap.Config.ARGB_8888).let {
-            if (window != null && frameColor != null) decorateFilm(it, window) else it
-        }
+        return done()
     }
+
+    // Linear reflectance to sRGB (0..1)
+    private fun srgb(r: Float) = if (r <= 0.0031308f) r * 12.92f else 1.055f * r.toDouble().pow(1 / 2.4).toFloat() - 0.055f
 
     // Lettering like on the real frame, preview only
     private fun decorateFilm(bmp: Bitmap, window: PhotoWindow): Bitmap {
@@ -420,7 +539,8 @@ object ImageProcessor {
 
     // Prepare tones for thermal printing: auto contrast in the photo area, brightness/contrast,
     // gentle sharpening, and dot-gain compensation so the print matches the preview.
-    private fun prepare(gray: FloatArray, w: Int, h: Int, area: Rect, o: Options, fade: FloatArray?) {
+    // tone (optional) receives the image tone before the print correction, for the red band.
+    private fun prepare(gray: FloatArray, w: Int, h: Int, area: Rect, o: Options, fade: FloatArray?, ink: Ink, tone: FloatArray?) {
         val r = Rect(area).apply { intersect(0, 0, w, h) }
         if (r.isEmpty) return
         val hist = IntArray(256)
@@ -441,7 +561,8 @@ object ImageProcessor {
         val photo = o.raster != Raster.TEXT
         // Dot gain only matters for patterns of single dots; coarse cells and thick lines print true
         val fine = o.raster == Raster.DOTS || o.raster == Raster.SCANLINES || o.raster == Raster.SCANLINES_WIDE
-        val curve = PrintCurve.lut(o.density, o.fast, o.toneGamma)
+        val curve = PrintCurve.lut(o.density, o.toneGamma)
+        val gamma = o.toneGamma.toFloat()
 
         // Unsharp mask (3×3); kept light so scaled high-contrast edges do not bloom at full heat
         val src = gray.copyOf()
@@ -454,7 +575,15 @@ object ImageProcessor {
             }
             v = (v - lo) / (hi - lo) * 255f
             v = (v - 128f) * contrast + 128f + bright
-            if (o.raster == Raster.PHOTO) {
+            if (tone != null) {
+                val t = if (o.invert) 255f - v.coerceIn(0f, 255f) else v.coerceIn(0f, 255f)
+                tone[i] = if (fade != null) t * fade[i] + 255f * (1f - fade[i]) else t
+            }
+            if (ink == Ink.GRAY) {
+                // The printer makes the gray levels itself, no dot pattern to correct: only the tone
+                // target, darkness 1 − (v/255)^gamma spread evenly over the 16 levels
+                v = 255f * (v.coerceIn(0f, 255f) / 255f).pow(gamma)
+            } else if (o.raster == Raster.PHOTO) {
                 // Measured print curve (PrintCurve): dither input that prints the target darkness
                 val k = v.coerceIn(0f, 255f)
                 val k0 = k.toInt().coerceAtMost(254)
@@ -472,9 +601,8 @@ object ImageProcessor {
         }
     }
 
-    private fun toBits(px: IntArray, w: Int, h: Int, area: Rect, o: Options, fade: FloatArray? = null): ByteArray {
-        val gray = luminance(px)
-        prepare(gray, w, h, area, o, fade)
+    // The raster look on the prepared tones
+    private fun toBits(gray: FloatArray, w: Int, h: Int, o: Options): ByteArray {
         val bits = ByteArray(w * h)
         when (o.raster) {
             Raster.TEXT -> for (i in gray.indices) bits[i] = if (gray[i] < 128) 1 else 0

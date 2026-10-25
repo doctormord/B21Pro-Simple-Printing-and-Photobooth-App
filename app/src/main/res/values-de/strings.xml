@@ -54,11 +54,14 @@
     <string name="contrast">Kontrast</string>
     <string name="reset">Zurücksetzen</string>
     <string name="invert">Invertieren</string>
-    <string name="speed">Geschwindigkeit</string>
+    <string name="speed">Druckmodus</string>
     <string name="speed_fine">Fein</string>
     <string name="speed_fast">Grob</string>
     <string name="density">Druckdichte</string>
     <string name="paper_type">Papierart</string>
+    <string name="red_roll">Rolle Schwarz + Rot</string>
+    <string name="red_tones">Rote Tonwerte</string>
+    <string name="red_band">%1$d–%2$d %%</string>
     <string name="copies">Anzahl</string>
     <string name="print">Drucken</string>
     <string name="printing">Druckt …</string>
@@ -128,6 +131,7 @@
     <string name="printer_not_connected">Drucker nicht verbunden</string>
     <string name="label_freestyle">Freestyle</string>
     <string name="label_memory_film">Memory Film</string>
+    <string name="label_photo_frame">Fotorahmen</string>
     <string name="label_instant">Instant</string>
     <string name="label_instant_xl">Instant XL</string>
     <string name="label_instant_mini">Instant mini</string>

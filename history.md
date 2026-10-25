@@ -4,6 +4,50 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.4.0 (2026-10-26)
+
+### Gray mode
+The B21 Pro reports a 16-level gray mode among its capabilities, and gray prints from the
+manufacturer's app showed smooth tones with a fine line texture where ours were dithered dots. The
+row format was worked out from the printer's Bluetooth traffic while printing on our own printer
+(Android HCI snoop log; on Samsung phones it only starts after a reboot). The printer accepts the
+same packets over classic Bluetooth and BLE, so our BLE connection works for the gray mode too.
+
+- The print start carries the colour mode (3 = gray), gray rows come in a new wrapper command with
+  a 16-bit length, 4 bits per dot, with a simple run-length scheme. The format was confirmed by
+  rebuilding three recorded prints from the packets (a narrow photo, a 40 × 40 label and a
+  full-width 992-row photo); the last one settled how positions past byte 255 are coded (the low bit
+  of the run count is the ninth position bit).
+- The first test prints from our app lost rows: the gray mode prints slower than BLE delivers, and
+  the printer silently drops rows once its buffer (508 rows) is full, while still reporting the job
+  as done. The status reply tells how many rows are free; the app now waits for room before each
+  block of 100 rows.
+- Gray wedge on paper: on original rolls all 16 levels show; on a cheap roll the lightest seven
+  printed white. A measured curve per paper is still to come.
+
+*Fine* now means this gray mode for photos; the old fine (1-bit, slow speed) is *Coarse*. The old
+coarse, the printer's fast speed, is gone with its measured tables: it printed dots too large and
+gave photos a wormy texture. Other raster looks and signs stay 1-bit in both modes.
+
+### Red and black
+On two-colour rolls the printer takes two 1-bit planes. Worked out the same way: one command per row,
+plane 1 for red-only rows, 2 for black-only rows, 3 for rows with both (a bitmap of all dots plus a
+mask byte per used byte that marks the red ones). The first attempt sent two commands for mixed rows;
+the printer stops taking rows as soon as a row number repeats. A dot is red or black, never both.
+
+On paper a red dot next to a black one turns black (the heat spreads), so a 1-dot red/black
+checkerboard prints as a dark, almost black area, while 8-dot stripes stay clean. Photos therefore
+get colour areas, not colour dots: a band of image tones (a range slider) prints red, the rest black,
+decided on a slightly blurred image, with soft band edges blended in 2 × 2-dot cells, similar to
+split toning. Black dots in light tones show a red tint on these rolls, presumably because single
+dots do not reach the heat for black.
+
+### Other
+- NB838 photo frames (54 × 84 mm, rose, silver and pink frames) as a label preset; the window was
+  measured from the product diagram.
+- The tone target (gamma) is a setting in the debug console; the tone sweep centres on it.
+- Unit tests decode the gray and red/black rows with independent decoders of the row format.
+
 ## 1.3.9 (2026-10-25)
 
 - The photo booth button moved from below the preview into the mode bar, between *Photo* and *Sign*,

@@ -380,6 +380,26 @@
                         </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
 
+                    <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchRed"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp" android:text="@string/red_roll" />
+                    <LinearLayout android:id="@+id/redBand" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="horizontal" android:layout_marginTop="4dp">
+                            <TextView android:layout_width="0dp" android:layout_weight="1"
+                                android:layout_height="wrap_content" android:text="@string/red_tones"
+                                android:textAppearance="?attr/textAppearanceLabelLarge" />
+                            <TextView android:id="@+id/txtRedBand" android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textAppearance="?attr/textAppearanceLabelLarge"
+                                android:textColor="?attr/colorPrimary" />
+                        </LinearLayout>
+                        <com.google.android.material.slider.RangeSlider android:id="@+id/sliderRed"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:valueFrom="0" android:valueTo="100" android:stepSize="1" />
+                    </LinearLayout>
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -93,6 +93,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchSoftEdge: MaterialSwitch
     private lateinit var switchOverscan: MaterialSwitch
     private lateinit var switchInvert: MaterialSwitch
+    private lateinit var switchRed: MaterialSwitch
+    private lateinit var sliderRed: com.google.android.material.slider.RangeSlider
     private var raster = ImageProcessor.Raster.PHOTO
     // The calibration chart is pre-dithered and must reach the printer unchanged
     private var calibration = false
@@ -129,6 +131,8 @@ class MainActivity : AppCompatActivity() {
         switchInstant = findViewById(R.id.switchInstant)
         switchSoftEdge = findViewById(R.id.switchSoftEdge)
         switchOverscan = findViewById(R.id.switchOverscan)
+        switchRed = findViewById(R.id.switchRed)
+        sliderRed = findViewById(R.id.sliderRed)
         switchInvert = findViewById(R.id.switchInvert)
         toggleFont = findViewById(R.id.toggleFont)
         toggleStyle = findViewById(R.id.toggleStyle)
@@ -221,6 +225,29 @@ class MainActivity : AppCompatActivity() {
         toggleSpeed.addOnButtonCheckedListener { _, id, checked ->
             if (checked) prefs.edit().putInt("speed", if (id == R.id.speedFast) 0 else 1).apply()
             if (checked) { if (calibration) loadTestChart(calibrate = true) else scheduleRender() }
+        }
+        // Two-colour roll: a band of image tones prints red, the rest black
+        val redBand = findViewById<View>(R.id.redBand)
+        val txtRedBand = findViewById<TextView>(R.id.txtRedBand)
+        fun showRedBand() {
+            val (lo, hi) = sliderRed.values.let { it[0].toInt() to it[1].toInt() }
+            txtRedBand.text = getString(R.string.red_band, lo, hi)
+        }
+        switchRed.isChecked = prefs.getBoolean("redRoll", false)
+        redBand.visibility = if (switchRed.isChecked) View.VISIBLE else View.GONE
+        switchRed.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("redRoll", on).apply()
+            redBand.visibility = if (on) View.VISIBLE else View.GONE
+            toggleSpeed.isEnabled = !on
+            scheduleRender()
+        }
+        toggleSpeed.isEnabled = !switchRed.isChecked
+        sliderRed.values = listOf(prefs.getFloat("redLo", 50f), prefs.getFloat("redHi", 100f))
+        showRedBand()
+        sliderRed.addOnChangeListener { sl, _, _ ->
+            prefs.edit().putFloat("redLo", sl.values[0]).putFloat("redHi", sl.values[1]).apply()
+            showRedBand()
+            scheduleRender()
         }
 
         // Label
@@ -667,7 +694,7 @@ class MainActivity : AppCompatActivity() {
                 val opts = photoOptions(if (ImageStore.free) ImageProcessor.Fit.CONTAIN else ImageProcessor.Fit.COVER)
                 val src = source
                 r = withContext(Dispatchers.Default) {
-                    if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round, SWEEP)
+                    if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round, sweepGammas())
                     else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round)
                 }
                 rendered = if (src != null) r else null
@@ -676,6 +703,14 @@ class MainActivity : AppCompatActivity() {
             sizePreviewCard(r.preview.width, r.preview.height, label.round)
             updatePrintButton()
         }
+    }
+
+    // Tone target of photos (PrintCurve gamma), set in the debug console
+    private fun toneGamma() = prefs.getFloat("toneGamma", PrintCurve.DEFAULT_GAMMA.toFloat()).toDouble()
+
+    // Tone sweep stripes, left to right: around the current gamma
+    private fun sweepGammas() = toneGamma().let { g ->
+        doubleArrayOf(g - 0.3, g, g + 0.3, g + 0.6).map { Math.round(maxOf(0.4, it) * 10) / 10.0 }.toDoubleArray()
     }
 
     private fun photoOptions(fit: ImageProcessor.Fit): ImageProcessor.Options {
@@ -696,7 +731,14 @@ class MainActivity : AppCompatActivity() {
             softEdge = switchSoftEdge.isChecked,
             overscan = switchOverscan.isChecked && label.round,
             density = sliderDensity.value.toInt(),
-            fast = prefs.getInt("speed", 1) == 0,
+            toneGamma = toneGamma(),
+            ink = when {
+                switchRed.isChecked -> ImageProcessor.Ink.RED_BLACK
+                prefs.getInt("speed", 1) == 1 -> ImageProcessor.Ink.GRAY
+                else -> ImageProcessor.Ink.MONO
+            },
+            redLo = sliderRed.values[0] / 100f,
+            redHi = sliderRed.values[1] / 100f,
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,
@@ -905,7 +947,7 @@ class MainActivity : AppCompatActivity() {
             photoAspect = photoAspect(),
             options = photoOptions(ImageProcessor.Fit.COVER),
             density = sliderDensity.value.toInt(),
-            speed = prefs.getInt("speed", 1),
+            twoColorRoll = switchRed.isChecked,
             labelType = intArrayOf(1, 2, 3, 5)[paperIndex],
             copies = num(editCopies.text, 1.0).toInt().coerceIn(1, 20),
         )
@@ -919,23 +961,53 @@ class MainActivity : AppCompatActivity() {
         val copies = num(editCopies.text, 1.0).toInt().coerceIn(1, 999)
         val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
         val textStyle = if (textMode) currentTextStyle() else null
-        p.speed = prefs.getInt("speed", 1)
+        val twoColor = switchRed.isChecked
+        printJob {
+            val mode = when {
+                twoColor -> "red/black"
+                r.levels != null -> "16 grays"
+                else -> "1-bit"
+            }
+            log("Printing ${r.width}×${r.height} px, $mode, density $density …")
+            p.printResult(r, twoColor, density, labelType, copies, it)
+            textStyle?.let { history.addRecent(it) }
+        }
+    }
+
+    // Runs a print with the progress bar and a disabled print button
+    private fun printJob(job: suspend (onProgress: (Float) -> Unit) -> Unit) {
         btnPrint.isEnabled = false
         btnPrint.setText(R.string.printing)
         progress.visibility = View.VISIBLE
         progress.setProgressCompat(0, false)
         scope.launch {
             try {
-                log("Printing ${r.width}×${r.height} px, density $density …")
-                p.print(r.bits, r.width, r.height, density, labelType, copies) { f ->
-                    runOnUiThread { progress.setProgressCompat((f * 1000).toInt(), true) }
-                }
-                textStyle?.let { history.addRecent(it) }
+                job { f -> runOnUiThread { progress.setProgressCompat((f * 1000).toInt(), true) } }
             } catch (e: Exception) {
                 log("Print error: ${e.message}")
             }
             progress.visibility = View.INVISIBLE
             updatePrintButton()
+        }
+    }
+
+    // Test prints for the gray and red/black modes, sent straight to the printer (no preview),
+    // full head width and the label height of the selected label
+    private fun printColorTest(gray: Boolean) {
+        val p = printer ?: return
+        val h = ImageProcessor.mmToPx(labelSizeMm().second)
+        val density = sliderDensity.value.toInt()
+        val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
+        printJob { onProgress ->
+            if (gray) {
+                log("Gray wedge ${Niimbot.COLOR_HEAD}×$h, density $density …")
+                val px = withContext(Dispatchers.Default) { TestChart.grayWedge(h, "D$density") }
+                p.printGray(px, h, density, labelType, onProgress)
+            } else {
+                log("Red/black test ${Niimbot.COLOR_HEAD}×$h, density $density …")
+                val (black, red) = withContext(Dispatchers.Default) { TestChart.twoColor(h, "D$density") }
+                p.printTwoColor(black, red, h, density, labelType, onProgress)
+            }
         }
     }
 
@@ -1031,13 +1103,31 @@ class MainActivity : AppCompatActivity() {
                 button("Test chart") { dialog?.dismiss(); loadTestChart() },
                 button("Calibration") { dialog?.dismiss(); loadTestChart(calibrate = true) },
             ))
+            val txtGamma = TextView(this@MainActivity).apply {
+                textSize = 12f; text = "Tone gamma %.1f".format(Locale.ROOT, toneGamma())
+            }
+            addView(header("Photo tone target (gamma)"))
+            addView(row(txtGamma, Slider(this@MainActivity).apply {
+                valueFrom = 0.4f; valueTo = 2.4f; stepSize = 0.1f
+                value = (Math.round(toneGamma() * 10) / 10f).coerceIn(0.4f, 2.4f)
+                addOnChangeListener { _, v, fromUser ->
+                    if (!fromUser) return@addOnChangeListener
+                    prefs.edit().putFloat("toneGamma", v).apply()
+                    txtGamma.text = "Tone gamma %.1f".format(Locale.ROOT, v)
+                    scheduleRender()
+                }
+            }))
             addView(button(if (sweep) "Tone sweep: off" else "Tone sweep") {
                 dialog?.dismiss()
                 if (source == null || calibration) return@button toast(getString(R.string.print_need_photo))
                 sweep = !sweep
-                if (sweep) log("Tone sweep, stripes left to right: gamma " + SWEEP.joinToString(" / "))
+                if (sweep) log("Tone sweep, stripes left to right: gamma " + sweepGammas().joinToString(" / "))
                 scheduleRender()
             })
+            addView(row(
+                button("Gray wedge", p != null) { dialog?.dismiss(); printColorTest(gray = true) },
+                button("Red/black test", p != null) { dialog?.dismiss(); printColorTest(gray = false) },
+            ))
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
@@ -1092,10 +1182,9 @@ class MainActivity : AppCompatActivity() {
         }
         scope.launch {
             val density = sliderDensity.value.toInt()
-            val speed = if (prefs.getInt("speed", 1) == 0) "COARSE" else "FINE"
             // The calibration chart is made at print resolution, so it is drawn 1:1
             val chart = withContext(Dispatchers.Default) {
-                if (calibrate) TestChart.calibration(w, h, "CAL D$density $speed") else TestChart.create(w, h, l.round)
+                if (calibrate) TestChart.calibration(w, h, "CAL D$density") else TestChart.create(w, h, l.round)
             }
             calibration = calibrate
             sweep = false
@@ -1169,8 +1258,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        // Tone targets of the sweep stripes, left to right (PrintCurve gamma; 1.0 is the default)
-        val SWEEP = doubleArrayOf(1.0, 1.3, 1.6, 2.0)
         const val REQ_CAMERA = 1
         const val REQ_GALLERY = 2
         const val REQ_PERMS = 3

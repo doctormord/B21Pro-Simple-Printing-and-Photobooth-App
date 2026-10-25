@@ -29,6 +29,14 @@ object Niimbot {
     const val START_FW = 0xF5          // start firmware update (normal packet, [major,minor])
     // Firmware replies (CRC32 packets): 0x90 request CRC, 0x9A request chunk, 0x9D check result,
     // 0x9E final result. Commands: 0x91 CRC, 0x9B chunk, 0x9C no more chunks, 0x92 commit.
+    // Gray and red/black printing (worked out from the printer's Bluetooth traffic, FW 3.10).
+    // Both use the full 576-dot head and their own row commands; the print start carries the colour mode.
+    const val COLOR_HEAD = 576
+    const val PAGE_COLOR_TWO = 1       // black + red, two 1-bit planes
+    const val PAGE_COLOR_GRAY = 3      // 16 gray levels, 4 bits per dot
+    const val GRAY_ROWS = 0x8D         // wrapper with a 16-bit length: 0x84 empty rows, 0x86 gray row
+    const val TWO_COLOR_ROWS = 0x8A    // plane, then 0x84 empty rows or 0x85 bitmap row
+    const val PRINT_SYNC = 0x86        // "rows up to n sent", answered with 0xD3 once the printer has them
     const val RFID_INFO = 0x1A
     const val RFID_INFO2 = 0x1C
     const val ANTI_FAKE = 0x0B
@@ -38,7 +46,7 @@ object Niimbot {
     val RESPONSE = mapOf(
         CONNECT to 0xC2, SET_DENSITY to 0x31, SET_LABEL_TYPE to 0x33, PRINT_START to 0x02,
         PAGE_START to 0x04, SET_PAGE_SIZE to 0x14, SET_QUANTITY to 0x16, PAGE_END to 0xE4, PRINT_STATUS to 0xB3,
-        PRINT_END to 0xF4, HEARTBEAT to 0xDD,
+        PRINT_END to 0xF4, HEARTBEAT to 0xDD, PRINT_SYNC to 0xD3,
     )
 
     class Packet(val cmd: Int, val data: ByteArray)
@@ -79,6 +87,102 @@ object Niimbot {
     }
 
     fun u16(n: Int) = intArrayOf((n shr 8) and 0xFF, n and 0xFF)
+
+    // Like packet(), but with a 16-bit length (gray rows exceed 255 bytes); the XOR covers both length bytes
+    fun packet16(cmd: Int, data: ByteArray): ByteArray {
+        val out = ByteArray(data.size + 8)
+        out[0] = 0x55; out[1] = 0x55
+        out[2] = cmd.toByte(); out[3] = (data.size shr 8).toByte(); out[4] = data.size.toByte()
+        System.arraycopy(data, 0, out, 5, data.size)
+        var chk = 0
+        for (i in 2 until 5 + data.size) chk = chk xor (out[i].toInt() and 0xFF)
+        out[5 + data.size] = chk.toByte()
+        out[6 + data.size] = 0xAA.toByte(); out[7 + data.size] = 0xAA.toByte()
+        return out
+    }
+
+    // One row command plus the last print row it covers (for progress and PRINT_SYNC)
+    class Row(val last: Int, val bytes: ByteArray)
+
+    // levels: COLOR_HEAD × height, 0 = white .. 15 = black.
+    // Gray row: 86 row(u16) repeat(1) N runs[N] data. Data is two dots per byte, high nibble first.
+    // A run (a, b) repeats the last dot (a & 0xFE) − 2 more times after data byte ((a & 1) << 8) | b.
+    // Runs are only used for 8 or more equal dots.
+    fun encodeGrayRows(levels: ByteArray, height: Int): List<Row> {
+        val w = COLOR_HEAD
+        val out = ArrayList<Row>()
+        var y = 0
+        while (y < height) {
+            if ((0 until w).all { levels[y * w + it].toInt() == 0 }) {
+                var n = 1
+                while (y + n < height && n < 100 && (0 until w).all { levels[(y + n) * w + it].toInt() == 0 }) n++
+                out.add(Row(y + n - 1, packet16(GRAY_ROWS, byteArrayOf(0x84.toByte(), (y shr 8).toByte(), y.toByte(), n.toByte(), 0))))
+                y += n
+                continue
+            }
+            val data = java.io.ByteArrayOutputStream(w / 2)
+            val runs = java.io.ByteArrayOutputStream()
+            var x = 0
+            val o = y * w
+            while (x < w) {
+                val a = levels[o + x].toInt() and 15
+                val b = levels[o + x + 1].toInt() and 15
+                data.write((a shl 4) or b)
+                x += 2
+                if (a != b || runs.size() > 250) continue
+                var n = 0
+                while (x + n < w && n < 252 && levels[o + x + n].toInt() == b) n++
+                n = n and 1.inv()
+                if (n < 6) continue
+                val at = data.size() - 1
+                runs.write((n + 2) or ((at shr 8) and 1))
+                runs.write(at and 0xFF)
+                x += n
+            }
+            val body = java.io.ByteArrayOutputStream()
+            body.write(0x86); body.write(y shr 8); body.write(y and 0xFF); body.write(1)
+            body.write(runs.size()); runs.writeTo(body); data.writeTo(body)
+            out.add(Row(y, packet16(GRAY_ROWS, body.toByteArray())))
+            y++
+        }
+        return out
+    }
+
+    // black/red: COLOR_HEAD × height, 1 = ink; a dot set in both prints black. One command per row:
+    // red only: 01 85 row(u16) repeat(1) bitmap; black only: 02 85 …; both: 03 row(u16) repeat(1) followed
+    // by the bitmap of all inked dots and, for each non-zero byte of it, a mask byte (1 = red, 0 = black).
+    // Rows without ink: 00 84 row(u16) count. The printer stops taking rows if a row number comes twice.
+    fun encodeTwoColorRows(black: ByteArray, red: ByteArray, height: Int): List<Row> {
+        val w = COLOR_HEAD
+        fun bitmap(y: Int, ink: (Int) -> Boolean) = IntArray(w / 8).also { row ->
+            for (x in 0 until w) if (ink(y * w + x)) row[x shr 3] = row[x shr 3] or (0x80 shr (x and 7))
+        }
+        val out = ArrayList<Row>()
+        var y = 0
+        while (y < height) {
+            val k = bitmap(y) { black[it].toInt() != 0 }
+            val r = bitmap(y) { red[it].toInt() != 0 && black[it].toInt() == 0 }
+            val hasK = k.any { it != 0 }; val hasR = r.any { it != 0 }
+            when {
+                !hasK && !hasR -> {
+                    var n = 1
+                    while (y + n < height && n < 255 && (0 until w).none { black[(y + n) * w + it].toInt() != 0 || red[(y + n) * w + it].toInt() != 0 }) n++
+                    out.add(Row(y + n - 1, packet(TWO_COLOR_ROWS, intArrayOf(0, 0x84) + u16(y) + n)))
+                    y += n
+                    continue
+                }
+                !hasK -> out.add(Row(y, packet(TWO_COLOR_ROWS, intArrayOf(1, 0x85) + u16(y) + 1 + r)))
+                !hasR -> out.add(Row(y, packet(TWO_COLOR_ROWS, intArrayOf(2, 0x85) + u16(y) + 1 + k)))
+                else -> {
+                    val all = IntArray(w / 8) { k[it] or r[it] }
+                    val mask = all.indices.filter { all[it] != 0 }.map { r[it] }.toIntArray()
+                    out.add(Row(y, packet(TWO_COLOR_ROWS, intArrayOf(3) + u16(y) + 1 + all + mask)))
+                }
+            }
+            y++
+        }
+        return out
+    }
 
     // Firmware packet with CRC32 (update flow):
     // 55 55 CMD chunkHi chunkLo LEN DATA... CRC32(4, big-endian) AA AA

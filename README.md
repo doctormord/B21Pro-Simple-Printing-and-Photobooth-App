@@ -13,11 +13,13 @@ for tablets.
 
 **Photos**
 - Camera, gallery, or *Share* from any other app; crop to the label shape or freely
-- Nine raster looks (see below), brightness, contrast, invert
+- 16-level gray printing (*Fine*) or 1-bit dithering (*Coarse*), nine raster looks (see below),
+  brightness, contrast, invert
+- Red and black on two-colour rolls: a band of image tones, set with a slider, prints red
 - Soft edge: the photo fades to white towards its border, round on circle labels
 - Instant frame with an optional caption, printed by the app on plain labels
-- NB835 *Memory Film* labels with a pre-printed frame: only the window is printed, with a
-  per-label offset that is remembered
+- Labels with a pre-printed frame, NB835 *Memory Film* (54 × 67 mm) and NB838 *Photo frame*
+  (54 × 84 mm): only the window is printed, with a per-label offset that is remembered
 - Round labels and Memory Film print 0.6 mm past the edge so a slightly shifted roll leaves no
   white gap; on round labels *Overscan* raises this to 2 mm
 
@@ -38,7 +40,8 @@ for tablets.
 - Presets for common B21 sizes (rectangular, square, round, instant style) and a custom size
   (print width up to 50 mm, length up to 200 mm)
 - Gap, black mark, continuous and transparent paper; multiple copies
-- Print density 1–5 and two print modes, fine and coarse (the printer's slow and fast speed)
+- Print density 1–5 and two print modes: *Fine* (16 gray levels) and *Coarse* (1-bit dots)
+- Two-colour rolls (black + red)
 
 **Layout**
 - Phone, tablet portrait and a two-column tablet landscape layout
@@ -54,7 +57,7 @@ moiré there that does not appear on paper.
 
 | Look           | How it works                                                                 |
 |----------------|------------------------------------------------------------------------------|
-| Photo          | Atkinson error diffusion with tones corrected by the printer's measured response (see below). Light tones pass on the full error, so highlights keep a few dots instead of burning out, while paper white stays blank. |
+| Photo          | *Fine*: the printer's 16 gray levels, Floyd–Steinberg error diffusion between them. *Coarse*: Atkinson error diffusion to black and white with tones corrected by the printer's measured response (see below); light tones pass on the full error, so highlights keep a few dots instead of burning out, while paper white stays blank. |
 | Halftone dots  | Round dots on a 45° screen, about 0.5 mm pitch                               |
 | Line screen    | Horizontal lines, 0.6 mm apart; the line thickness carries the tone (engraving style) |
 | TV scanlines   | The picture sits in bands of dot rows with a white gap: 4 + 2 rows, or 6 + 4 rows for *wide*. Dot spread closes about one row of the gap, so the wide version is the one that shows on small labels. |
@@ -67,12 +70,22 @@ Close-up, about twice the printed size:
 
 ![Raster detail](docs/raster-detail.png)
 
-### Tone correction
+The other looks are black-and-white patterns by nature and always print in 1-bit, also in *Fine*.
+
+### Gray mode
+
+The B21 Pro has a 16-level gray mode. Each dot gets one of 16 heat levels, so tones no longer depend on dot patterns and
+dot spread. The app diffuses the photo to 16 levels and spreads the tone
+target (gamma, see below) evenly over them; there is no measured correction yet. How light the
+lowest levels come out depends on the paper: on original rolls all 16 show, on a cheap roll the
+lightest seven printed white. Printing takes about four times as long as 1-bit.
+
+### Tone correction (1-bit)
 
 Thermal dots spread into their neighbours, and not evenly: measured with the calibration chart,
 isolated dots print about as dark as their share of the area, but from roughly 25 % coverage on they
 merge, and below tone ~110 everything prints solid black. The photo look therefore corrects tones
-with a table measured per print density and speed (`PrintCurve.kt`) instead of a formula: for each photo tone
+with a table measured per print density (`PrintCurve.kt`) instead of a formula: for each photo tone
 it picks the dither input that prints the intended darkness, and the preview uses the same
 measurement. The intended darkness is linear in the photo tone (tone 128 prints half dark); chosen
 from a tone-sweep print, darker targets closer to the screen's sRGB curve looked grey and flat on
@@ -99,10 +112,15 @@ corrected.
 - **Overscan** (round labels): print 2 mm instead of 0.6 mm past the rim. Memory Film has no
   overscan: its frame is thermal paper too, and print outside the window would grey it.
 - **Print density**: heat level sent to the printer. 1–2 suits photos on original rolls.
-- **Speed**: *Fine* for photos. *Coarse* is the printer's fast mode: single dots print much larger,
-  and dense alternating dot patterns come out lighter than lighter tones; the tone correction works
-  around that, but photos keep a coarse, wormy texture. Text prints the same in both modes.
+- **Print mode**: *Fine* prints photos in 16 gray levels, *Coarse* as 1-bit dots (the classic
+  thermal look, and faster). Raster looks other than *Photo*, signs and the calibration chart are
+  always 1-bit.
 - **Paper type**: how the printer finds the next label (gap, black mark, continuous, transparent).
+- **Black + red roll**: for two-colour rolls. Prints 1-bit; every dot is either red or black.
+  *Red tones* selects a band of image tones (0 % = black, 100 % = white) that prints red, the rest
+  prints black, a bit like split toning. The band edges blend softly. The colour is decided on a
+  slightly blurred image and blended in 2 × 2-dot cells, because a red dot next to a black one turns
+  black (the heat spreads) and fine red/black mixtures print as a muddy brown. Signs print black.
 
 ![Soft edge](docs/soft-edge.png)
 
@@ -180,10 +198,16 @@ the BLE characteristic and shows every reply. It also offers:
   into the preview, as if it were a cropped photo: tone wedge, gradient, dither patches, line and
   checkerboard resolution, Siemens star, rings and microtext. Works without a printer.
 - **Calibration**: a 5 × 5 chart of flat tones, already dithered and printed dot for dot without
-  any image processing, with the density and speed printed on it. `tools/calib.py` reads a photo of
+  any image processing, with the density printed on it. It measures the 1-bit mode. `tools/calib.py` reads a photo of
   it and reports how dark each patch printed; those numbers are the tables in `PrintCurve.kt`.
+- **Tone gamma**: the tone target for photos, darkness = 1 − tone^gamma (1.0 = linear, the
+  default), for both print modes. Remembered.
 - **Tone sweep**: prints the current photo in four vertical stripes with different tone targets
-  (gamma 1.0, 1.3, 1.6, 2.0, labelled at the top), to choose the target from one print.
+  around the current gamma (−0.3, ±0, +0.3, +0.6, labelled at the top), to choose from one print.
+- **Gray wedge**: prints 16 flat gray levels, a smooth ramp diffused to 16 levels and the same
+  ramp in black and white only, straight to the printer.
+- **Red/black test**: black ramp, red ramp, both side by side, 8-dot stripes and a 1-dot
+  checkerboard in red and black.
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
   the console log and the log at the bottom of the main screen.
 - **Flash firmware**: sends a `.bin` firmware image over Bluetooth. The version is taken from the
@@ -206,6 +230,17 @@ the BLE characteristic and shows every reply. It also offers:
   it and remembers what worked.
 - 300 dpi, 591-dot print head (50 mm). Rows are sent as bitmap rows with per-third dot counts;
   identical rows are merged.
+- Gray and red/black mode (worked out from the printer's Bluetooth traffic): the colour mode
+  is a byte of the print start (3 = gray, 1 = red/black), the width is 576 dots.
+  - Gray rows: `55 55 8D LEN(u16) 86 row(u16) 01 N runs… data… XOR AA AA`, data 4 bits per dot
+    (0 = white, 15 = black), runs (a, b) repeat the last dot (a & 0xFE) − 2 more times after data
+    byte ((a & 1) << 8) | b. Empty rows: `8D … 84 row(u16) count 00`.
+  - Red/black rows: `55 55 8A LEN plane …`, one command per row: plane 1 = red only, 2 = black
+    only (`85 row(u16) 01` + 72-byte bitmap), 3 = both (`row(u16) 01` + bitmap of all dots + one
+    mask byte per non-zero byte, 1 = red). A row number sent twice stops the printer.
+  - These modes print slower than BLE delivers, and the printer drops rows silently once its
+    buffer is full. Rows go out in blocks of 100; before each block the status reply (bytes 4–5:
+    free rows) is polled until there is room.
 - The printer often drops the first packet after a pause, so every job starts with a heartbeat.
 - Firmware updates use a separate framing with a CRC-32 instead of the XOR checksum:
   `55 55 CMD chunkHi chunkLo LEN DATA… CRC32 AA AA`, 200-byte chunks.
@@ -217,9 +252,9 @@ main reference.
 
 | File                             | Purpose                                                        |
 |----------------------------------|----------------------------------------------------------------|
-| `Niimbot.kt`                     | packet encoding and parsing, row encoding                      |
+| `Niimbot.kt`                     | packet encoding and parsing, row encoding (1-bit, gray, red/black) |
 | `B21Printer.kt`                  | BLE connection, print sequence, firmware update                |
-| `ImageProcessor.kt`              | scaling, tone curve, dot gain, raster looks, frame and window composition |
+| `ImageProcessor.kt`              | scaling, tone curve, dot gain, raster looks, gray levels, red band, frame and window composition |
 | `PrintCurve.kt`                  | measured tone response per density, tone correction table     |
 | `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration chart |
 | `TextLabel.kt`                   | sign rendering                                                 |

@@ -3,8 +3,9 @@ package de.b21print
 import android.content.Context
 import androidx.annotation.StringRes
 
-// Printable window on a pre-printed label, in mm from the label's top left corner
-data class PhotoWindow(val x: Double, val y: Double, val w: Double, val h: Double)
+// Printable window on a pre-printed label, in mm from the label's top left corner.
+// filmText: the preview draws the Memory Film lettering of NB835 on the frame.
+data class PhotoWindow(val x: Double, val y: Double, val w: Double, val h: Double, val filmText: Boolean = false)
 
 data class LabelPreset(
     // Stable key, stored in preferences and history
@@ -33,15 +34,25 @@ object Labels {
     // Window measured from the product photo (±0.3 mm); fine-tuning corrects the rest.
     val NB835 = LabelPreset(
         "Memory Film", R.string.label_memory_film, 54.0, 67.0,
-        window = PhotoWindow(3.3, 6.5, 47.5, 47.0),
+        window = PhotoWindow(3.3, 6.5, 47.5, 47.0, filmText = true),
         frameColor = 0xFF3C3A58.toInt(),
         code = "NB835",
+    )
+
+    // NB838 instant-style photo frames, 54 × 84 mm, frames in rose, silver and pink with a wide
+    // bottom border. Window measured from the product diagram (±0.3 mm).
+    val NB838 = LabelPreset(
+        "Photo frame 54x84", R.string.label_photo_frame, 54.0, 84.0,
+        window = PhotoWindow(4.7, 4.0, 44.6, 61.0),
+        frameColor = 0xFFC29395.toInt(),
+        code = "NB838",
     )
 
     // The official app loads its catalog from the cloud; these are common B21 sizes.
     val ALL = listOf(
         FREESTYLE,
         NB835,
+        NB838,
         LabelPreset("Instant", R.string.label_instant, 50.0, 60.0, instant = true),
         LabelPreset("Instant XL", R.string.label_instant_xl, 50.0, 70.0, instant = true),
         LabelPreset("Instant mini", R.string.label_instant_mini, 40.0, 50.0, instant = true),

@@ -108,8 +108,76 @@ object TestChart {
 
     private const val BLACK = 0xff000000.toInt()
 
+    // Test for the 16-level gray mode, full head width, levels 0 = white .. 15 = black. Three bands:
+    // 16 flat steps (white left), a smooth ramp error-diffused to 16 levels, and the same ramp
+    // diffused to black and white only, which is what the 1-bit mode can do.
+    fun grayWedge(h: Int, caption: String): ByteArray {
+        val w = Niimbot.COLOR_HEAD
+        val px = ByteArray(w * h)
+        val m = 24
+        stamp(px, w, h, m, m, caption, w, 15)
+        val top = m + 40; val gap = 16
+        val bh = (h - top - m - 2 * gap) / 3
+        val x0 = m; val x1 = w - m
+        for (y in top until top + bh) for (x in x0 until x1) px[y * w + x] = (16 * (x - x0) / (x1 - x0)).toByte()
+        for ((band, levels) in listOf(1 to 16, 2 to 2)) {
+            val y0 = top + band * (bh + gap)
+            val ramp = FloatArray((x1 - x0) * bh) { 15f * (it % (x1 - x0)) / (x1 - x0 - 1) }
+            val q = diffuse(ramp, x1 - x0, bh, levels)
+            for (y in 0 until bh) System.arraycopy(q, y * (x1 - x0), px, (y0 + y) * w + x0, x1 - x0)
+        }
+        return px
+    }
+
+    // Test for red/black rolls, full head width, returns (black, red) planes:
+    // black ramp, red ramp, the two side by side and in 8-dot stripes in the same rows,
+    // and a 1-dot red/black checkerboard to show how well the two colours line up.
+    fun twoColor(h: Int, caption: String): Pair<ByteArray, ByteArray> {
+        val w = Niimbot.COLOR_HEAD
+        val black = ByteArray(w * h); val red = ByteArray(w * h)
+        val m = 24
+        stamp(black, w, h, m, m, caption, w)
+        val top = m + 40; val gap = 16
+        val bh = (h - top - m - 4 * gap) / 5
+        val x0 = m; val x1 = w - m; val rw = x1 - x0
+        fun ramp(plane: ByteArray, y0: Int, xa: Int, xb: Int) {
+            val t = FloatArray((xb - xa) * bh) { 15f * (it % (xb - xa)) / (xb - xa - 1) }
+            val q = diffuse(t, xb - xa, bh, 2)
+            for (y in 0 until bh) for (x in 0 until xb - xa) if (q[y * (xb - xa) + x].toInt() != 0) plane[(y0 + y) * w + xa + x] = 1
+        }
+        fun fill(plane: ByteArray, y0: Int, xa: Int, xb: Int, on: (Int, Int) -> Boolean) {
+            for (y in y0 until y0 + bh) for (x in xa until xb) if (on(x, y)) plane[y * w + x] = 1
+        }
+        var y = top
+        ramp(black, y, x0, x1); y += bh + gap
+        ramp(red, y, x0, x1); y += bh + gap
+        ramp(black, y, x0, x0 + rw / 2); ramp(red, y, x0 + rw / 2, x1); y += bh + gap
+        fill(black, y, x0, x1) { x, _ -> (x / 8) % 2 == 0 }; fill(red, y, x0, x1) { x, _ -> (x / 8) % 2 == 1 }; y += bh + gap
+        fill(black, y, x0, x1) { x, yy -> (x + yy) % 2 == 0 }; fill(red, y, x0, x1) { x, yy -> (x + yy) % 2 == 1 }
+        return black to red
+    }
+
+    // Floyd-Steinberg from 0..15 to the given number of evenly spaced levels, result in 0..15
+    private fun diffuse(v: FloatArray, w: Int, h: Int, levels: Int): ByteArray {
+        val out = ByteArray(w * h)
+        val step = 15f / (levels - 1)
+        for (y in 0 until h) for (x in 0 until w) {
+            val i = y * w + x
+            val q = (Math.round(v[i] / step) * step).coerceIn(0f, 15f)
+            out[i] = Math.round(q).toByte()
+            val e = v[i] - q
+            if (x + 1 < w) v[i + 1] += e * 7 / 16
+            if (y + 1 < h) {
+                if (x > 0) v[i + w - 1] += e * 3 / 16
+                v[i + w] += e * 5 / 16
+                if (x + 1 < w) v[i + w + 1] += e / 16
+            }
+        }
+        return out
+    }
+
     // Small label in print bits: black text on a white box, scale chosen from the label width
-    fun stamp(bits: ByteArray, w: Int, h: Int, x0: Int, y0: Int, text: String, labelW: Int) {
+    fun stamp(bits: ByteArray, w: Int, h: Int, x0: Int, y0: Int, text: String, labelW: Int, ink: Int = 1) {
         val s = maxOf(2, labelW / 160)
         val tw = text.length * 6 * s + 2 * s; val th = 9 * s
         for (y in y0 until minOf(h, y0 + th)) for (x in x0 until minOf(w, x0 + tw)) if (y >= 0 && x >= 0) bits[y * w + x] = 0
@@ -119,7 +187,7 @@ object TestChart {
                 for ((ry, line) in g.withIndex()) for ((rx, ch) in line.withIndex()) if (ch == '#') {
                     for (yy in 0 until s) for (xx in 0 until s) {
                         val px = x + rx * s + xx; val py = y0 + s + ry * s + yy
-                        if (px in 0 until w && py in 0 until h) bits[py * w + px] = 1
+                        if (px in 0 until w && py in 0 until h) bits[py * w + px] = ink.toByte()
                     }
                 }
             }

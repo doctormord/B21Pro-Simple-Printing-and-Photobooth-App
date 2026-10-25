@@ -12,7 +12,9 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
 ```
 
 `local.properties` (not in git) points to the SDK: `sdk.dir=/opt/homebrew/share/android-commandlinetools`.
-There are no unit tests; changes are checked in the emulator and on paper.
+`./gradlew testDebugUnitTest` runs the few unit tests (`NiimbotTest`: packet and row encoding; the
+gray and red/black encoders round-trip through independent decoders of the row format).
+Everything else is checked in the emulator and on paper.
 
 ## Layout
 
@@ -29,11 +31,17 @@ There are no unit tests; changes are checked in the emulator and on paper.
 1. Scale the photo into the photo area at print resolution (300 dpi, 591-dot head):
    area-average downscale with a small pre-blur.
 2. `prepare`: auto levels (1 % black point, 99.9 % white point), sharpening, brightness/contrast,
-   tone correction (photo look: measured table from `PrintCurve`; halftone/scanlines: dot-gain
-   formula; coarse looks: none), invert, then the soft-edge fade.
-   The fade must come after the levels step, or the added white darkens the photo.
-3. `toBits`: the raster look, at print resolution. Nothing is scaled after this point.
-4. `composePreview`: preview bitmap with simulated dot spread; only this is scaled on screen.
+   tone correction (gray mode: the gamma target only; 1-bit photo look: measured table from
+   `PrintCurve`; halftone/scanlines: dot-gain formula; coarse looks: none), invert, then the
+   soft-edge fade. The fade must come after the levels step, or the added white darkens the photo.
+3. Rasterise at print resolution, by `Options.ink` (see `inkFor`): GRAY → `toLevels` (16 levels,
+   photo look only), otherwise `toBits` (the raster look); RED_BLACK adds `redMask` (which dots are
+   red). Nothing is scaled after this point.
+4. `composePreview`: preview bitmap with simulated dot spread / gray levels / red; only this is
+   scaled on screen.
+
+`B21Printer.printResult` sends a `Result` in its ink. Gray and red/black use their own row commands,
+a 576-dot width and block-wise flow control on the status reply; see the protocol notes in README.md.
 
 Things that look like bugs but are deliberate:
 - Atkinson passes on the full error for light tones (`atkinson`). Plain Atkinson cannot put a dot
@@ -42,6 +50,10 @@ Things that look like bugs but are deliberate:
   knee at ~25 % coverage. To re-measure, print the calibration chart (debug console), photograph it
   and run `tools/calib.py`; the result goes into `PrintCurve.kt` (one table per density).
 - Round labels and Memory Film print past the edge (bleed), round labels are not masked.
+- Red/black: the colour is chosen per area (blurred tone, 2 × 2-dot cells), not per dot. A red dot
+  next to a black one prints black.
+- The colour modes must wait for room in the printer buffer before each block of rows; without it
+  the printer drops rows and still reports the job as done.
 
 ## Conventions
 
@@ -60,6 +72,10 @@ AVDs `b21test` (phone) and `b21tablet` (tablet, natural orientation landscape: u
 landscape). `adb shell uiautomator dump` plus `input tap/swipe` drives the app; a photo pushed to
 `/sdcard/Pictures` and a media scan make it available in the gallery picker. Without a printer the
 debug console still offers the test chart, which is the quickest way to see a change.
+
+Bluetooth traffic of a real phone: enable the HCI snoop log in
+the developer options (Samsung: then reboot), print, `adb bugreport`, and read
+`FS/data/log/bt/btsnoop_hci.log` from the zip.
 
 The preview is a downscaled copy of the print, so judge fine patterns from a zoomed crop, not from
 the whole screen.

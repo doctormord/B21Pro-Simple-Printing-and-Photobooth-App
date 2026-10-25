@@ -284,8 +284,9 @@ class B21Printer(
 
     var variant: Variant? = null
 
-    // Print speed, part of the V4 (D110M_V4) print start: 1 = clarity (default), 0 = speed.
-    var speed = 1
+    // Print speed, part of the V4 (D110M_V4) print start: 1 = clarity, 0 = speed. The fast speed printed
+    // dots too large for photos and is no longer offered.
+    private val speed = 1
     // Log every reply (diagnostics)
     var verbose = false
     var onVariantFound: (Variant) -> Unit = {}
@@ -376,6 +377,10 @@ class B21Printer(
             onProgress((i + 1f) / rows.size)
         }
 
+        finishJob(copies, heartbeat = used == Variant.V4)
+    }
+
+    private suspend fun finishJob(copies: Int, heartbeat: Boolean) {
         var ok = false
         for (t in 0 until 10) {
             ok = runCatching { request(Niimbot.PAGE_END, intArrayOf(1), 1000)[0].toInt() == 1 }.getOrDefault(false)
@@ -391,9 +396,94 @@ class B21Printer(
             delay(500)
         }
         // V4 sends a heartbeat before the end
-        if (used == Variant.V4) oneWay(Niimbot.HEARTBEAT, intArrayOf(1))
+        if (heartbeat) oneWay(Niimbot.HEARTBEAT, intArrayOf(1))
         runCatching { request(Niimbot.PRINT_END, intArrayOf(1)) }
         log("Print finished")
+    }
+
+    // Prints a rendered label in its ink: 1-bit, gray levels, or red/black (twoColorRoll also sends
+    // plain 1-bit labels such as signs through the two-colour mode, all black)
+    suspend fun printResult(
+        r: ImageProcessor.Result, twoColorRoll: Boolean, density: Int, labelType: Int, copies: Int,
+        onProgress: (Float) -> Unit,
+    ) {
+        val levels = r.levels
+        if (levels == null && !twoColorRoll) return print(r.bits, r.width, r.height, density, labelType, copies, onProgress)
+        for (c in 0 until copies) {
+            val part: (Float) -> Unit = { f -> onProgress((c + f) / copies) }
+            if (levels != null) {
+                printGray(toColorHead(levels, r.width, r.height), r.height, density, labelType, part)
+            } else {
+                val red = r.red ?: ByteArray(r.bits.size)
+                val black = ByteArray(r.bits.size) { if (r.bits[it].toInt() != 0 && red[it].toInt() == 0) 1 else 0 }
+                printTwoColor(toColorHead(black, r.width, r.height), toColorHead(red, r.width, r.height),
+                    r.height, density, labelType, part)
+            }
+        }
+    }
+
+    // The colour modes address 576 dots: narrower images are centred, the 591-dot width is trimmed evenly
+    private fun toColorHead(a: ByteArray, width: Int, height: Int): ByteArray {
+        val head = Niimbot.COLOR_HEAD
+        if (width == head) return a
+        val out = ByteArray(head * height)
+        val n = minOf(width, head)
+        val src = maxOf(0, (width - head) / 2); val dst = maxOf(0, (head - width) / 2)
+        for (y in 0 until height) System.arraycopy(a, y * width + src, out, y * head + dst, n)
+        return out
+    }
+
+    // 16-level gray (levels: 576 × height, 0..15)
+    suspend fun printGray(levels: ByteArray, height: Int, density: Int, labelType: Int, onProgress: (Float) -> Unit) =
+        printColor(Niimbot.PAGE_COLOR_GRAY, Niimbot.encodeGrayRows(levels, height), height, density, labelType, onProgress)
+
+    // Black and red on a two-colour roll (planes: 576 × height, 1 = ink)
+    suspend fun printTwoColor(black: ByteArray, red: ByteArray, height: Int, density: Int, labelType: Int, onProgress: (Float) -> Unit) =
+        printColor(Niimbot.PAGE_COLOR_TWO, Niimbot.encodeTwoColorRows(black, red, height), height, density, labelType, onProgress)
+
+    // Colour modes: V4 start with the colour in the page-colour byte and speed 0, page width 575 for gray
+    // and 576 for red/black, then the rows.
+    // These modes print slower than BLE delivers, and the printer silently drops rows once its buffer is
+    // full. So rows go out in blocks of 100, and before each block the status
+    // (bytes 4–5: free buffer rows, 508 when idle in gray mode) is polled until there is room again.
+    private suspend fun printColor(
+        color: Int, rows: List<Niimbot.Row>, height: Int, density: Int, labelType: Int, onProgress: (Float) -> Unit,
+    ) {
+        warmUp()
+        runCatching { request(Niimbot.SET_DENSITY, intArrayOf(density)) }
+            .getOrElse { request(Niimbot.SET_DENSITY, intArrayOf(density)) }
+        request(Niimbot.SET_LABEL_TYPE, intArrayOf(labelType))
+        val r = request(Niimbot.PRINT_START, Niimbot.u16(1) + intArrayOf(0, 0, 0, 0, color, 0, 0))
+        log("Print start colour $color → ${hex(r)}")
+        if (r.isNotEmpty() && r[0].toInt() == 0) throw Exception("Printer rejected colour mode $color (${hex(r)})")
+        oneWay(Niimbot.PRINT_STATUS, intArrayOf(1))
+        val width = if (color == Niimbot.PAGE_COLOR_GRAY) Niimbot.COLOR_HEAD - 1 else Niimbot.COLOR_HEAD
+        request(Niimbot.SET_PAGE_SIZE, Niimbot.u16(height) + Niimbot.u16(width) + Niimbot.u16(1) + IntArray(7))
+
+        rows.forEachIndexed { i, row ->
+            if (i % BLOCK == 0) waitForRoom(BLOCK)
+            write(row.bytes)
+            if (i % BLOCK == BLOCK - 1 && color == Niimbot.PAGE_COLOR_GRAY) {
+                runCatching { request(Niimbot.PRINT_SYNC, Niimbot.u16(row.last) + 1, 15000) }
+                    .onFailure { log("No sync reply at row ${row.last}") }
+            } else if (i % 8 == 7) delay(10)
+            onProgress((i + 1f) / rows.size)
+        }
+        finishJob(1, heartbeat = true)
+    }
+
+    private val BLOCK = 100
+
+    private suspend fun waitForRoom(rows: Int) {
+        val until = System.currentTimeMillis() + 60000
+        while (System.currentTimeMillis() < until) {
+            val s = runCatching { request(Niimbot.PRINT_STATUS, intArrayOf(1), 1000) }.getOrNull()
+            if (s == null || s.size < 6) return     // firmware without the field: carry on
+            val free = ((s[4].toInt() and 0xFF) shl 8) or (s[5].toInt() and 0xFF)
+            if (free >= rows) return
+            delay(150)
+        }
+        log("Printer buffer stayed full, sending anyway")
     }
 
     // Queries what the printer reports about the roll and authenticity check; raw replies go to the log

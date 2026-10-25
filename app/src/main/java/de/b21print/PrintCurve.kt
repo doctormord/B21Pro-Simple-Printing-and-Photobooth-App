@@ -26,8 +26,10 @@ object PrintCurve {
         floatArrayOf(0.000f, 0.108f, 0.196f, 0.247f, 0.306f, 0.461f, 0.628f, 0.751f, 0.848f, 0.889f, 0.942f, 0.947f, 0.947f, 0.967f, 0.978f, 0.998f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f),
     )
 
-    // How dark a photo tone should print, 1 − (v/255)^gamma: 1.0 is linear, ~2.2 the screen's sRGB
-    const val DEFAULT_GAMMA = 1.6
+    // How dark a photo tone should print, 1 − (v/255)^gamma: 1.0 is linear, ~2.2 the screen's sRGB.
+    // Chosen from a tone-sweep print (1.0 / 1.3 / 1.6 / 2.0) at density 3: higher values look grey
+    // and flat on thermal paper.
+    const val DEFAULT_GAMMA = 1.0
 
     // Above this darkness the phone photos used for measuring crush the shadows: patches that are
     // still distinguishable on paper read as solid. The table is trusted up to here and continues

@@ -1162,7 +1162,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        // Tone targets of the sweep stripes, left to right (PrintCurve gamma)
+        // Tone targets of the sweep stripes, left to right (PrintCurve gamma; 1.0 is the default)
         val SWEEP = doubleArrayOf(1.0, 1.3, 1.6, 2.0)
         const val REQ_CAMERA = 1
         const val REQ_GALLERY = 2

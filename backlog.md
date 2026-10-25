@@ -13,7 +13,7 @@ Open items, roughly in order of priority.
 ## Print tuning (needs paper)
 
 - Fast speed densities 2 and 4 are interpolated from 1, 3 and 5.
-- Pick the tone target from a tone-sweep print (debug console) and set `PrintCurve.DEFAULT_GAMMA`.
+- The tone target (gamma 1.0) was chosen at density 3 with one photo; check it at densities 1 and 5.
 - The shadow end of the measured curves comes from phone photos and is unreliable above ~90 %
   darkness; a flatbed scan of the calibration charts would fix that.
 - Calibrate halftone dots and scanlines the same way; they still use the old dot-gain formula.

@@ -74,8 +74,9 @@ isolated dots print about as dark as their share of the area, but from roughly 2
 merge, and below tone ~110 everything prints solid black. The photo look therefore corrects tones
 with a table measured per print density and speed (`PrintCurve.kt`) instead of a formula: for each photo tone
 it picks the dither input that prints the intended darkness, and the preview uses the same
-measurement. The intended darkness lies between a linear mapping and the screen's sRGB curve
-(gamma 1.6), which suits small thermal prints.
+measurement. The intended darkness is linear in the photo tone (tone 128 prints half dark); chosen
+from a tone-sweep print, darker targets closer to the screen's sRGB curve looked grey and flat on
+thermal paper.
 
 Halftone dots and TV scanlines still use a simple dot-gain formula; the coarse looks print close to
 their nominal tone and are not corrected.

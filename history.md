@@ -4,6 +4,11 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.8 (2026-10-25)
+
+Tone sweep at density 3, brightness and contrast at 0: gamma 1.0 looked best, 1.3–2.0 increasingly
+grey. The default tone target is now linear.
+
 ## 1.3.7 (2026-10-25)
 
 The first print with the measured curve (1.3.5) came out flat: blacks were a dense grey texture

@@ -13,8 +13,9 @@ Open items, roughly in order of priority.
 ## Print tuning (needs paper)
 
 - Fast speed densities 2 and 4 are interpolated from 1, 3 and 5.
-- Check the tone target (gamma 1.6 in `PrintCurve`) on real photos; the brightness slider covers
-  personal taste, the default should look right at 0.
+- Pick the tone target from a tone-sweep print (debug console) and set `PrintCurve.DEFAULT_GAMMA`.
+- The shadow end of the measured curves comes from phone photos and is unreliable above ~90 %
+  darkness; a flatbed scan of the calibration charts would fix that.
 - Calibrate halftone dots and scanlines the same way; they still use the old dot-gain formula.
 
 - Print the raster looks on real rolls and check tone. Line screen, Macintosh, Amiga and fax skip

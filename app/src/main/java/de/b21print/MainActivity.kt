@@ -96,6 +96,8 @@ class MainActivity : AppCompatActivity() {
     private var raster = ImageProcessor.Raster.PHOTO
     // The calibration chart is pre-dithered and must reach the printer unchanged
     private var calibration = false
+    // Tone sweep: the photo in vertical stripes with different tone targets, to pick one on paper
+    private var sweep = false
     private lateinit var toggleFont: MaterialButtonToggleGroup
     private lateinit var toggleStyle: MaterialButtonToggleGroup
     private lateinit var toggleFrame: MaterialButtonToggleGroup
@@ -628,6 +630,7 @@ class MainActivity : AppCompatActivity() {
                 ImageStore.reset(source!!)
                 source = null
                 calibration = false
+                sweep = false
                 openCrop()
             } catch (e: Exception) {
                 log("Could not load image: ${e.message}")
@@ -657,7 +660,8 @@ class MainActivity : AppCompatActivity() {
                 val opts = photoOptions(if (ImageStore.free) ImageProcessor.Fit.CONTAIN else ImageProcessor.Fit.COVER)
                 val src = source
                 r = withContext(Dispatchers.Default) {
-                    ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round)
+                    if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round, SWEEP)
+                    else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round)
                 }
                 rendered = if (src != null) r else null
             }
@@ -1020,6 +1024,13 @@ class MainActivity : AppCompatActivity() {
                 button("Test chart") { dialog?.dismiss(); loadTestChart() },
                 button("Calibration") { dialog?.dismiss(); loadTestChart(calibrate = true) },
             ))
+            addView(button(if (sweep) "Tone sweep: off" else "Tone sweep") {
+                dialog?.dismiss()
+                if (source == null || calibration) return@button toast(getString(R.string.print_need_photo))
+                sweep = !sweep
+                if (sweep) log("Tone sweep, stripes left to right: gamma " + SWEEP.joinToString(" / "))
+                scheduleRender()
+            })
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
@@ -1080,6 +1091,7 @@ class MainActivity : AppCompatActivity() {
                 if (calibrate) TestChart.calibration(w, h, "CAL D$density $speed") else TestChart.create(w, h, l.round)
             }
             calibration = calibrate
+            sweep = false
             findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode).check(R.id.modeAppPhoto)
             ImageStore.reset(chart)
             ImageStore.cropped = chart
@@ -1150,6 +1162,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        // Tone targets of the sweep stripes, left to right (PrintCurve gamma)
+        val SWEEP = doubleArrayOf(1.0, 1.3, 1.6, 2.0)
         const val REQ_CAMERA = 1
         const val REQ_GALLERY = 2
         const val REQ_PERMS = 3

@@ -41,6 +41,7 @@ object TestChart {
         'F' to "#####|#....|#....|####.|#....|#....|#....",
         'L' to "#....|#....|#....|#....|#....|#....|#####",
         'S' to ".####|#....|#....|.###.|....#|....#|####.",
+        '.' to ".....|.....|.....|.....|.....|.##..|.##..",
     ).mapValues { it.value.split('|') }
 
     // Chart for a photo area of w × h print pixels. Round labels get the chart inside the
@@ -105,6 +106,25 @@ object TestChart {
     }
 
     private const val BLACK = 0xff000000.toInt()
+
+    // Small label in print bits: black text on a white box, scale chosen from the label width
+    fun stamp(bits: ByteArray, w: Int, h: Int, x0: Int, y0: Int, text: String, labelW: Int) {
+        val s = maxOf(2, labelW / 160)
+        val tw = text.length * 6 * s + 2 * s; val th = 9 * s
+        for (y in y0 until minOf(h, y0 + th)) for (x in x0 until minOf(w, x0 + tw)) if (y >= 0 && x >= 0) bits[y * w + x] = 0
+        var x = x0 + s
+        for (c in text) {
+            FONT[c]?.let { g ->
+                for ((ry, line) in g.withIndex()) for ((rx, ch) in line.withIndex()) if (ch == '#') {
+                    for (yy in 0 until s) for (xx in 0 until s) {
+                        val px = x + rx * s + xx; val py = y0 + s + ry * s + yy
+                        if (px in 0 until w && py in 0 until h) bits[py * w + px] = 1
+                    }
+                }
+            }
+            x += 6 * s
+        }
+    }
 
     private fun draw(W: Int, H: Int): IntArray {
         val buf = IntArray(W * H) { 255 }

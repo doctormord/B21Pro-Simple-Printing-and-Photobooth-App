@@ -180,6 +180,8 @@ the BLE characteristic and shows every reply. It also offers:
 - **Calibration**: a 5 × 5 chart of flat tones, already dithered and printed dot for dot without
   any image processing, with the density and speed printed on it. `tools/calib.py` reads a photo of
   it and reports how dark each patch printed; those numbers are the tables in `PrintCurve.kt`.
+- **Tone sweep**: prints the current photo in four vertical stripes with different tone targets
+  (gamma 1.0, 1.3, 1.6, 2.0, labelled at the top), to choose the target from one print.
 - **Log** with copy and clear buttons; it also shows the app's own log lines while open.
 - **Flash firmware**: sends a `.bin` firmware image over Bluetooth. The version is taken from the
   file name (e.g. `B21_Pro_3.10.bin` → 3.10). The printer verifies the image before committing it;

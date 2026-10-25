@@ -9,6 +9,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import java.util.Locale
 import kotlin.math.pow
 
 object ImageProcessor {
@@ -18,7 +19,7 @@ object ImageProcessor {
     // Order = order in the raster picker (R.array.raster)
     enum class Raster { PHOTO, DOTS, LINES, SCANLINES, SCANLINES_WIDE, MAC, AMIGA, FAX, TEXT }
 
-    class Options(
+    data class Options(
         val fit: Fit,
         val rotation: Int,
         val raster: Raster,
@@ -37,6 +38,8 @@ object ImageProcessor {
         // Printer density 1..5; the photo raster corrects tones with the curve measured for it
         val density: Int = 3,
         val fast: Boolean = false,
+        // Photo raster: target tone curve of the print (see PrintCurve)
+        val toneGamma: Double = PrintCurve.DEFAULT_GAMMA,
     )
 
     // bits/width/height: what is printed (at most the print head width)
@@ -134,6 +137,26 @@ object ImageProcessor {
 
         val curve = if (o.raster == Raster.PHOTO) o else null
         return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor, curve))
+    }
+
+    // The same photo with several tone targets side by side in vertical stripes, each labelled with
+    // its gamma at the top, to pick the target from a single print
+    fun renderSweep(
+        src: Bitmap?, labelWmm: Double, labelHmm: Double, window: PhotoWindow?, frameColor: Int?, o: Options,
+        round: Boolean, gammas: DoubleArray,
+    ): Result {
+        val parts = gammas.map { render(src, labelWmm, labelHmm, window, frameColor, o.copy(toneGamma = it), round) }
+        val w = parts[0].width; val h = parts[0].height
+        val labelW = mmToPx(labelWmm)
+        val top = (if (window != null) mmToPx(window.y) else 0) + mmToPx(1.5)
+        val bits = ByteArray(w * h)
+        for ((k, part) in parts.withIndex()) {
+            val x0 = k * w / parts.size; val x1 = (k + 1) * w / parts.size
+            for (y in 0 until h) System.arraycopy(part.bits, y * w + x0, bits, y * w + x0, x1 - x0)
+            TestChart.stamp(bits, w, h, x0 + mmToPx(1.0), top, "%.1f".format(Locale.ROOT, gammas[k]), labelW)
+        }
+        val curve = if (o.raster == Raster.PHOTO) o else null
+        return Result(bits, w, h, composePreview(bits, w, h, labelW, (labelW - w) / 2, window, frameColor, curve))
     }
 
     // Soft frame: how much of the photo remains (1) or fades to white (0) over the outer ~12 % of
@@ -418,7 +441,7 @@ object ImageProcessor {
         val photo = o.raster != Raster.TEXT
         // Dot gain only matters for patterns of single dots; coarse cells and thick lines print true
         val fine = o.raster == Raster.DOTS || o.raster == Raster.SCANLINES || o.raster == Raster.SCANLINES_WIDE
-        val curve = PrintCurve.lut(o.density, o.fast)
+        val curve = PrintCurve.lut(o.density, o.fast, o.toneGamma)
 
         // Unsharp mask (3×3); kept light so scaled high-contrast edges do not bloom at full heat
         val src = gray.copyOf()

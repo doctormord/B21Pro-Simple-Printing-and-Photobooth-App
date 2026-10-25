@@ -26,12 +26,24 @@ object PrintCurve {
         floatArrayOf(0.000f, 0.108f, 0.196f, 0.247f, 0.306f, 0.461f, 0.628f, 0.751f, 0.848f, 0.889f, 0.942f, 0.947f, 0.947f, 0.967f, 0.978f, 0.998f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f),
     )
 
-    // How dark a photo tone should print: between linear (1.0) and the screen's sRGB (~2.2)
-    private const val TARGET_GAMMA = 1.6
+    // How dark a photo tone should print, 1 − (v/255)^gamma: 1.0 is linear, ~2.2 the screen's sRGB
+    const val DEFAULT_GAMMA = 1.6
 
-    private val luts = HashMap<Int, FloatArray>()
+    // Above this darkness the phone photos used for measuring crush the shadows: patches that are
+    // still distinguishable on paper read as solid. The table is trusted up to here and continues
+    // in a straight line to solid at input 0, so the darkest photo tones still reach solid black.
+    private const val TRUSTED = 0.9f
 
-    private fun table(density: Int, fast: Boolean) = (if (fast) FAST else FINE)[density.coerceIn(1, 5) - 1]
+    private val luts = HashMap<String, FloatArray>()
+
+    private fun table(density: Int, fast: Boolean): FloatArray {
+        val raw = (if (fast) FAST else FINE)[density.coerceIn(1, 5) - 1]
+        val k = raw.indexOfFirst { it >= TRUSTED }.takeIf { it in 1 until raw.size - 1 } ?: return raw
+        val last = raw.size - 1
+        return FloatArray(raw.size) { i ->
+            if (i <= k) raw[i] else raw[k] + (1f - raw[k]) * (i - k) / (last - k)
+        }
+    }
 
     // Printed darkness of a dither input tone (0..255)
     fun darkness(density: Int, fast: Boolean, tone: Float): Float {
@@ -43,12 +55,12 @@ object PrintCurve {
     }
 
     // Dither input tone for each photo tone 0..255, so the print has the target darkness
-    fun lut(density: Int, fast: Boolean): FloatArray = synchronized(luts) {
-        luts.getOrPut(density.coerceIn(1, 5) * 2 + if (fast) 1 else 0) {
+    fun lut(density: Int, fast: Boolean, gamma: Double = DEFAULT_GAMMA): FloatArray = synchronized(luts) {
+        luts.getOrPut("${density.coerceIn(1, 5)} $fast $gamma") {
             val dark = table(density, fast)
             val n = dark.size
             FloatArray(256) { v ->
-                val target = (1 - (v / 255.0).pow(TARGET_GAMMA)).toFloat()
+                val target = (1 - (v / 255.0).pow(gamma)).toFloat()
                 // First step whose darkness reaches the target, then interpolate within the step
                 var i = 1
                 while (i < n - 1 && dark[i] < target) i++

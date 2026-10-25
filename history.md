@@ -4,6 +4,16 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.7 (2026-10-25)
+
+The first print with the measured curve (1.3.5) came out flat: blacks were a dense grey texture
+instead of solid, faces mid-grey. Two reasons. The phone photos used for measuring crush the
+shadows, so patches from tone ~100 down all read as solid and the table never used darker dither
+inputs; the table is now trusted up to 90 % darkness and continues in a straight line to solid at
+input 0. And the gamma-1.6 target was chosen on paper-free reasoning. Rather than guess again, the
+debug console got a tone sweep that prints the photo in four stripes with gamma 1.0, 1.3, 1.6 and
+2.0.
+
 ## 1.3.6 (2026-10-25)
 
 Calibration charts for all fine densities (1–5) and for fast at densities 1, 3 and 5 replace the

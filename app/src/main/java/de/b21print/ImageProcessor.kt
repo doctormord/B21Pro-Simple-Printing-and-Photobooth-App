@@ -211,6 +211,10 @@ object ImageProcessor {
     // spread; black and white stay put, mid-tones lose ink. 0 = off, ~0.55 = strong thermal.
     private const val DOT_GAIN = 0.55
 
+    // Highlight headroom: the brightest tone maps here instead of pure white, so light areas
+    // keep a faint dot texture instead of clipping to blank paper. Lower = more highlight detail.
+    private const val WHITE = 240f
+
     // Prepare tones for thermal printing: auto contrast in the photo area, brightness/contrast,
     // gentle sharpening, and dot-gain compensation so the print matches the preview.
     private fun prepare(gray: FloatArray, w: Int, h: Int, area: Rect, o: Options) {
@@ -241,12 +245,15 @@ object ImageProcessor {
                 val blur = (src[i - 1] + src[i + 1] + src[i - w] + src[i + w] + 4 * v) / 8f
                 v += 0.4f * (v - blur)
             }
-            v = (v - lo) / (hi - lo) * 255f
+            val top = if (photo) WHITE else 255f
+            v = (v - lo) / (hi - lo) * top
             v = (v - 128f) * contrast + 128f + bright
             if (photo) {
-                // Dot-gain compensation in ink-coverage space (d = 1 - v, 1 = full black)
+                // Dot-gain compensation in ink-coverage space (d = 1 - v, 1 = full black).
+                // Taper it out in the highlights (small d) so light tones keep their dots.
                 val d = (1f - v / 255f).coerceIn(0f, 1f)
-                val di = d * (1f - DOT_GAIN.toFloat() * (1f - d))
+                val wgt = ((d - 0.05f) / 0.17f).coerceIn(0f, 1f)
+                val di = d - DOT_GAIN.toFloat() * d * (1f - d) * wgt
                 v = (1f - di) * 255f
             }
             gray[i] = if (o.invert) 255f - v else v.coerceIn(0f, 255f)

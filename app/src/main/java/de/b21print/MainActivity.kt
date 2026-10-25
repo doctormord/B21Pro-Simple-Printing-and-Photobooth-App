@@ -182,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         dropPaper.setText(resources.getStringArray(R.array.paper)[0], false)
         dropPaper.setOnItemClickListener { _, _, pos, _ -> paperIndex = pos }
         val txtDensity = findViewById<TextView>(R.id.txtDensity)
-        sliderDensity.value = prefs.getInt("density", 3).toFloat()
+        sliderDensity.value = prefs.getInt("density", 2).toFloat()
         txtDensity.text = sliderDensity.value.toInt().toString()
         sliderDensity.addOnChangeListener { _, v, _ ->
             txtDensity.text = v.toInt().toString()

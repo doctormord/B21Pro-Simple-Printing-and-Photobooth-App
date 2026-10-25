@@ -327,13 +327,13 @@
                             android:layout_height="wrap_content" android:text="@string/density"
                             android:textAppearance="?attr/textAppearanceLabelLarge" />
                         <TextView android:id="@+id/txtDensity" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="3"
+                            android:layout_height="wrap_content" android:text="2"
                             android:textAppearance="?attr/textAppearanceLabelLarge"
                             android:textColor="?attr/colorPrimary" />
                     </LinearLayout>
                     <com.google.android.material.slider.Slider android:id="@+id/sliderDensity"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:valueFrom="1" android:valueTo="5" android:stepSize="1" android:value="3" />
+                        android:valueFrom="1" android:valueTo="5" android:stepSize="1" android:value="2" />
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="@string/speed" android:layout_marginTop="8dp"

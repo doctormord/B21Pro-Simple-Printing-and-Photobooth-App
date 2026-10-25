@@ -23,7 +23,7 @@ object ImageProcessor {
         val brightness: Int,   // -60..60
         val contrast: Int,     // -50..50
         val invert: Boolean,
-        val polaroid: Boolean,
+        val instant: Boolean,
         val caption: String,
         val offsetXMm: Double = 0.0,
         val offsetYMm: Double = 0.0,
@@ -38,8 +38,8 @@ object ImageProcessor {
 
     fun mmToPx(mm: Double) = Math.round(mm / 25.4 * Niimbot.DPI).toInt()
 
-    // Polaroid look: equal border top/sides, wider bottom border for the caption
-    fun polaroidPhotoRect(w: Int, h: Int): Rect {
+    // Instant look: equal border top/sides, wider bottom border for the caption
+    fun instantPhotoRect(w: Int, h: Int): Rect {
         val side = Math.round(w * 0.07f)
         val minBottom = Math.round(h * 0.2f)
         val photoW = w - 2 * side
@@ -81,7 +81,7 @@ object ImageProcessor {
                 mmToPx(window.x + window.w + BLEED_MM + o.offsetXMm) - headLeft,
                 mmToPx(window.y + window.h + BLEED_MM + o.offsetYMm),
             ).apply { intersect(0, 0, w, h) }
-            o.polaroid -> polaroidPhotoRect(w, h)
+            o.instant -> instantPhotoRect(w, h)
             else -> Rect(0, 0, w, h)
         }
         if (round) {
@@ -92,7 +92,7 @@ object ImageProcessor {
         }
         if (src != null) {
             drawFitted(canvas, src, area, o.fit, o.rotation)
-        } else if (o.polaroid || window != null) {
+        } else if (o.instant || window != null) {
             // Placeholder so the layout is visible
             canvas.drawRect(area, Paint().apply { color = Color.rgb(210, 210, 210) })
         }
@@ -102,7 +102,7 @@ object ImageProcessor {
         val bits = toBits(px, w, h, area, o)
         canvasBmp.recycle()
 
-        if (o.polaroid && window == null) {
+        if (o.instant && window == null) {
             // Thin line around the photo so bright images still stand out
             for (x in area.left until area.right) {
                 bits[area.top * w + x] = 1; bits[(area.bottom - 1) * w + x] = 1
@@ -126,8 +126,24 @@ object ImageProcessor {
             val r = mmToPx(window.x + window.w); val b = mmToPx(window.y + window.h)
             for (y in t until minOf(b, h)) for (x in l until minOf(r, labelW)) out[y * labelW + x] = Color.WHITE
         }
+        // Simulate the printed dot: each black cell bleeds a little into its neighbours, so the
+        // preview darkens by the same amount the tones were pre-lightened for. Preview ≈ print.
         for (y in 0 until h) for (x in 0 until w) {
-            if (bits[y * w + x].toInt() != 0) out[y * labelW + headLeft + x] = Color.BLACK
+            val i = y * w + x
+            if (bits[i].toInt() != 0) {
+                out[y * labelW + headLeft + x] = Color.BLACK
+            } else if (x > 0 && y > 0 && x < w - 1 && y < h - 1) {
+                var n = 0
+                if (bits[i - 1].toInt() != 0) n++
+                if (bits[i + 1].toInt() != 0) n++
+                if (bits[i - w].toInt() != 0) n++
+                if (bits[i + w].toInt() != 0) n++
+                if (n > 0) {
+                    val ink = (DOT_GAIN * n / 4.0).coerceIn(0.0, 1.0)
+                    val g = (255 * (1 - ink)).toInt()
+                    out[y * labelW + headLeft + x] = Color.rgb(g, g, g)
+                }
+            }
         }
         return Bitmap.createBitmap(out, labelW, h, Bitmap.Config.ARGB_8888).let {
             if (window != null && frameColor != null) decorateFilm(it, window) else it
@@ -190,8 +206,13 @@ object ImageProcessor {
         g * a + 255f * (1 - a)
     }
 
+    // At full heat each printed dot bleeds into its neighbours, so a mid-tone dither pattern
+    // comes out much darker than on screen. We pre-lighten the tones by the inverse of that
+    // spread; black and white stay put, mid-tones lose ink. 0 = off, ~0.55 = strong thermal.
+    private const val DOT_GAIN = 0.55
+
     // Prepare tones for thermal printing: auto contrast in the photo area, brightness/contrast,
-    // gamma against dot gain, and light sharpening.
+    // gentle sharpening, and dot-gain compensation so the print matches the preview.
     private fun prepare(gray: FloatArray, w: Int, h: Int, area: Rect, o: Options) {
         val r = Rect(area).apply { intersect(0, 0, w, h) }
         if (r.isEmpty) return
@@ -209,21 +230,26 @@ object ImageProcessor {
         if (hi - lo < 32f) { lo = 0f; hi = 255f }
         val contrast = 1f + o.contrast / 50f * 0.8f
         val bright = o.brightness * 1.5f
-        val gamma = if (o.raster == Raster.TEXT) 1f else 0.75f
+        val photo = o.raster != Raster.TEXT
 
-        // Unsharp mask (3×3) for more detail at 300 dpi
+        // Unsharp mask (3×3); kept light so scaled high-contrast edges do not bloom at full heat
         val src = gray.copyOf()
         for (y in r.top until r.bottom) for (x in r.left until r.right) {
             val i = y * w + x
             var v = src[i]
-            if (o.raster != Raster.TEXT && x > r.left && y > r.top && x < r.right - 1 && y < r.bottom - 1) {
+            if (photo && x > r.left && y > r.top && x < r.right - 1 && y < r.bottom - 1) {
                 val blur = (src[i - 1] + src[i + 1] + src[i - w] + src[i + w] + 4 * v) / 8f
-                v += 0.8f * (v - blur)
+                v += 0.4f * (v - blur)
             }
             v = (v - lo) / (hi - lo) * 255f
             v = (v - 128f) * contrast + 128f + bright
-            v = 255f * Math.pow((v / 255f).coerceIn(0f, 1f).toDouble(), gamma.toDouble()).toFloat()
-            gray[i] = if (o.invert) 255f - v else v
+            if (photo) {
+                // Dot-gain compensation in ink-coverage space (d = 1 - v, 1 = full black)
+                val d = (1f - v / 255f).coerceIn(0f, 1f)
+                val di = d * (1f - DOT_GAIN.toFloat() * (1f - d))
+                v = (1f - di) * 255f
+            }
+            gray[i] = if (o.invert) 255f - v else v.coerceIn(0f, 255f)
         }
     }
 

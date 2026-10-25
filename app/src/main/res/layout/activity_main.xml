@@ -238,9 +238,9 @@
                         android:valueFrom="-3" android:valueTo="3" android:stepSize="0.1" android:value="0"
                         app:labelBehavior="gone" app:tickVisible="false" />
                 </LinearLayout>
-                <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchPolaroid"
+                <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchInstant"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp" android:text="@string/polaroid_frame" />
+                    android:layout_marginTop="4dp" android:text="@string/instant_frame" />
                 <com.google.android.material.textfield.TextInputLayout android:id="@+id/captionLayout"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -327,6 +327,21 @@
                 <com.google.android.material.slider.Slider android:id="@+id/sliderDensity"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:valueFrom="1" android:valueTo="5" android:stepSize="1" android:value="3" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="@string/speed" android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+                <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleSpeed"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/speedFine">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/speedFine"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp"
+                        android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/speed_fine" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/speedFast"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp"
+                        android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/speed_fast" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginTop="4dp">

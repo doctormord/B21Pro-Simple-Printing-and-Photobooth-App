@@ -49,6 +49,7 @@ object Booth {
         val photoAspect: Float,
         val options: ImageProcessor.Options,
         val density: Int,
+        val speed: Int,
         val labelType: Int,
         val copies: Int,
     )
@@ -190,7 +191,7 @@ class BoothActivity : AppCompatActivity() {
         val size = if (cfg.label.round) getString(R.string.size_round, fmt(cfg.widthMm))
             else getString(R.string.size_rect, fmt(cfg.widthMm), fmt(cfg.heightMm))
         val extras = buildList {
-            if (cfg.options.polaroid) add("Polaroid")
+            if (cfg.options.instant) add("Instant")
             if (cfg.copies > 1) add("${cfg.copies}×")
         }.joinToString(" · ")
         findViewById<TextView>(R.id.txtBoothInfo).text =
@@ -265,8 +266,9 @@ class BoothActivity : AppCompatActivity() {
     }
 
     private fun updateFlashButton() {
-        btnFlash.text = getString(if (screenFlash) R.string.flash_on else R.string.flash_off)
-        btnFlash.alpha = if (screenFlash) 1f else 0.6f
+        // Icon-only toggle: full opacity = flash on, dimmed = off
+        btnFlash.contentDescription = getString(if (screenFlash) R.string.flash_on else R.string.flash_off)
+        btnFlash.alpha = if (screenFlash) 1f else 0.45f
     }
 
     private fun startCamera() {
@@ -400,6 +402,7 @@ class BoothActivity : AppCompatActivity() {
         txtStatus.setText(R.string.booth_printing)
         scope.launch {
             val ok = try {
+                p.speed = cfg.speed
                 p.print(r.bits, r.width, r.height, cfg.density, cfg.labelType, cfg.copies) { f ->
                     runOnUiThread { progress.setProgressCompat((f * 1000).toInt(), true) }
                 }

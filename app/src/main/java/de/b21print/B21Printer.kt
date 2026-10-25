@@ -284,9 +284,8 @@ class B21Printer(
 
     var variant: Variant? = null
 
-    // Bytes 8/9 of the V4 print start (speed/quality, flag), 0 = printer default
-    var quality = 0
-    var flag = 0
+    // Print speed, part of the V4 (D110M_V4) print start: 1 = clarity (default), 0 = speed.
+    var speed = 1
     // Log every reply (diagnostics)
     var verbose = false
     var onVariantFound: (Variant) -> Unit = {}
@@ -302,7 +301,8 @@ class B21Printer(
 
     private suspend fun startPage(v: Variant, width: Int, height: Int, copies: Int) {
         val ps = when (v) {
-            Variant.V4 -> Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0, quality, flag)
+            // 9-byte D110M_V4 start: copies, 0,0,0,0, pageColor(0), speed, flag(0)
+            Variant.V4 -> Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0, speed, 0)
             Variant.B1 -> Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0)
             Variant.V1 -> intArrayOf(1)
         }

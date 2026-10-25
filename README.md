@@ -15,7 +15,7 @@ for tablets.
 - Camera, gallery, or *Share* from any other app; crop with label-shaped or free framing
 - Three raster modes: photo (Atkinson dithering), dots (halftone), text/logo (hard threshold)
 - Brightness, contrast, invert
-- Polaroid frame with an optional caption, printed by the app on plain labels
+- Instant frame with an optional caption, printed by the app on plain labels
 - NB835 *Memory Film* labels with a pre-printed frame: prints only into the window, with
   per-label offset fine-tuning that is remembered
 
@@ -33,9 +33,11 @@ for tablets.
 - Volume keys and Bluetooth selfie remotes work as a shutter
 
 **Labels**
-- Presets for common B21 sizes (rectangular, square, round, polaroid) and a custom size
+- Presets for common B21 sizes (rectangular, square, round, instant-style) and a custom size
   (print width up to 50 mm, length up to 200 mm)
-- Gap, black mark, continuous and transparent paper; density 1–5; multiple copies
+- Gap, black mark, continuous and transparent paper; multiple copies
+- Density 1–5 and two print speeds (fine/fast), both printer-side; dot-gain compensation on the
+  image side so the print matches the preview
 
 **Layout**
 - Phone, tablet portrait and a two-column tablet landscape layout
@@ -102,7 +104,7 @@ main reference.
 |----------------------|-------------------------------------------------------------|
 | `Niimbot.kt`         | packet encoding and parsing, row encoding                   |
 | `B21Printer.kt`      | BLE connection, print sequence, firmware update             |
-| `ImageProcessor.kt`  | scaling, tone curve, dithering, polaroid/window composition |
+| `ImageProcessor.kt`  | scaling, tone curve, dot-gain, dithering, frame/window composition |
 | `TextLabel.kt`       | sign rendering                                              |
 | `Labels.kt`          | label presets                                               |
 | `MainActivity.kt`    | main screen                                                 |

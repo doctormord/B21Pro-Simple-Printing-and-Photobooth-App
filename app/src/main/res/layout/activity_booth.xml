@@ -26,13 +26,15 @@
             android:shadowColor="#99000000" android:shadowRadius="4"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
         <com.google.android.material.button.MaterialButton android:id="@+id/btnBoothFlash"
-            style="@style/Widget.Material3.Button.TonalButton"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp" app:icon="@drawable/ic_flash" android:text="@string/flash_light" />
+            android:layout_marginEnd="4dp" app:icon="@drawable/ic_flash"
+            android:contentDescription="@string/flash_light" />
         <com.google.android.material.button.MaterialButton android:id="@+id/btnBoothTimer"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp" app:icon="@drawable/ic_timer" android:text="3 s" />
+            android:minWidth="0dp" android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:layout_marginEnd="4dp" app:icon="@drawable/ic_timer" android:text="3 s" />
         <com.google.android.material.button.MaterialButton android:id="@+id/btnBoothFlip"
             style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
             android:layout_width="wrap_content" android:layout_height="wrap_content"

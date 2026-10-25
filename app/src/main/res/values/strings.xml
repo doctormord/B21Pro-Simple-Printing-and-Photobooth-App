@@ -37,7 +37,7 @@
     <string name="height_helper">max. 200</string>
     <string name="offset_x">Offset left/right</string>
     <string name="offset_y">Offset up/down</string>
-    <string name="polaroid_frame">Polaroid frame</string>
+    <string name="instant_frame">Instant frame</string>
     <string name="caption_hint">Caption (optional)</string>
     <string name="raster_photo">Photo</string>
     <string name="raster_dots">Dots</string>
@@ -46,6 +46,9 @@
     <string name="contrast">Contrast</string>
     <string name="reset">Reset</string>
     <string name="invert">Invert</string>
+    <string name="speed">Speed</string>
+    <string name="speed_fine">Fine</string>
+    <string name="speed_fast">Fast</string>
     <string name="density">Print density</string>
     <string name="paper_type">Paper type</string>
     <string name="copies">Copies</string>
@@ -117,9 +120,9 @@
     <string name="printer_not_connected">Printer not connected</string>
     <string name="label_freestyle">Freestyle</string>
     <string name="label_memory_film">Memory Film</string>
-    <string name="label_polaroid">Polaroid</string>
-    <string name="label_polaroid_xl">Polaroid XL</string>
-    <string name="label_polaroid_mini">Polaroid mini</string>
+    <string name="label_instant">Instant</string>
+    <string name="label_instant_xl">Instant XL</string>
+    <string name="label_instant_mini">Instant mini</string>
     <string name="label_circle">Circle Ø %1$s</string>
     <string name="label_standard">Standard</string>
     <string name="label_square">Square</string>

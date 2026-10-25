@@ -13,7 +13,7 @@ data class LabelPreset(
     val widthMm: Double,
     val heightMm: Double,
     // The app prints the frame itself (for plain white labels)
-    val polaroid: Boolean = false,
+    val instant: Boolean = false,
     val freestyle: Boolean = false,
     // Pre-printed frame: only the window is printed
     val window: PhotoWindow? = null,
@@ -42,9 +42,9 @@ object Labels {
     val ALL = listOf(
         FREESTYLE,
         NB835,
-        LabelPreset("Polaroid", R.string.label_polaroid, 50.0, 60.0, polaroid = true),
-        LabelPreset("Polaroid XL", R.string.label_polaroid_xl, 50.0, 70.0, polaroid = true),
-        LabelPreset("Polaroid mini", R.string.label_polaroid_mini, 40.0, 50.0, polaroid = true),
+        LabelPreset("Instant", R.string.label_instant, 50.0, 60.0, instant = true),
+        LabelPreset("Instant XL", R.string.label_instant_xl, 50.0, 70.0, instant = true),
+        LabelPreset("Instant mini", R.string.label_instant_mini, 40.0, 50.0, instant = true),
         LabelPreset("Circle 50", R.string.label_circle, 50.0, 50.0, round = true),
         LabelPreset("Circle 40", R.string.label_circle, 40.0, 40.0, round = true),
         LabelPreset("Circle 30", R.string.label_circle, 30.0, 30.0, round = true),

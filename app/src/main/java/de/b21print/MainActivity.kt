@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editCaption: TextInputEditText
     private lateinit var editCopies: TextInputEditText
     private lateinit var editText: TextInputEditText
-    private lateinit var switchPolaroid: MaterialSwitch
+    private lateinit var switchInstant: MaterialSwitch
     private lateinit var switchInvert: MaterialSwitch
     private lateinit var toggleMode: MaterialButtonToggleGroup
     private lateinit var toggleFont: MaterialButtonToggleGroup
@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
         editCaption = findViewById(R.id.editCaption)
         editCopies = findViewById(R.id.editCopies)
         editText = findViewById(R.id.editText)
-        switchPolaroid = findViewById(R.id.switchPolaroid)
+        switchInstant = findViewById(R.id.switchInstant)
         switchInvert = findViewById(R.id.switchInvert)
         toggleMode = findViewById(R.id.toggleMode)
         toggleFont = findViewById(R.id.toggleFont)
@@ -188,12 +188,17 @@ class MainActivity : AppCompatActivity() {
             txtDensity.text = v.toInt().toString()
             prefs.edit().putInt("density", v.toInt()).apply()
         }
+        val toggleSpeed = findViewById<MaterialButtonToggleGroup>(R.id.toggleSpeed)
+        toggleSpeed.check(if (prefs.getInt("speed", 1) == 0) R.id.speedFast else R.id.speedFine)
+        toggleSpeed.addOnButtonCheckedListener { _, id, checked ->
+            if (checked) prefs.edit().putInt("speed", if (id == R.id.speedFast) 0 else 1).apply()
+        }
 
         // Label
         editWidth.doAfterTextChanged { onSizeEdited() }
         editHeight.doAfterTextChanged { onSizeEdited() }
         editCaption.doAfterTextChanged { scheduleRender() }
-        switchPolaroid.setOnCheckedChangeListener { _, _ -> applyModeVisibility(); scheduleRender() }
+        switchInstant.setOnCheckedChangeListener { _, _ -> applyModeVisibility(); scheduleRender() }
         // Fine-tuning is stored per label (calibrate once)
         val txtOffX = findViewById<TextView>(R.id.txtOffsetX)
         val txtOffY = findViewById<TextView>(R.id.txtOffsetY)
@@ -278,8 +283,8 @@ class MainActivity : AppCompatActivity() {
         show(R.id.imageSection, photo)
         show(R.id.textCard, !photo)
         show(R.id.windowTuning, win)
-        show(R.id.switchPolaroid, photo && !win && !selectedLabel.round)
-        show(R.id.captionLayout, photo && !win && switchPolaroid.isChecked)
+        show(R.id.switchInstant, photo && !win && !selectedLabel.round)
+        show(R.id.captionLayout, photo && !win && switchInstant.isChecked)
     }
 
     // ---------- Label list ----------
@@ -325,7 +330,7 @@ class MainActivity : AppCompatActivity() {
                     ((preset.widthMm - win.x - win.w) * s).toInt(), ((preset.heightMm - win.y - win.h) * s).toInt())
             }
         }
-        if (!preset.polaroid) return frame
+        if (!preset.instant) return frame
         val photo = GradientDrawable().apply { setColor(primary); cornerRadius = dp(1f) }
         return LayerDrawable(arrayOf(frame, photo)).apply {
             val side = dp(4f).toInt()
@@ -348,7 +353,7 @@ class MainActivity : AppCompatActivity() {
             editWidth.setText(fmt(preset.widthMm))
             editHeight.setText(fmt(preset.heightMm))
             suppressEdits = false
-            switchPolaroid.isChecked = preset.polaroid
+            switchInstant.isChecked = preset.instant
         }
         preset.window?.let { win ->
             findViewById<TextView>(R.id.txtWindowInfo).text =
@@ -369,9 +374,9 @@ class MainActivity : AppCompatActivity() {
         // Only count real input, not Android restoring state
         if (suppressEdits || !(editWidth.hasFocus() || editHeight.hasFocus())) return
         if (!selectedLabel.freestyle) {
-            val pol = switchPolaroid.isChecked
+            val pol = switchInstant.isChecked
             selectLabel(Labels.FREESTYLE)
-            switchPolaroid.isChecked = pol
+            switchInstant.isChecked = pol
         }
         scheduleRender()
     }
@@ -618,7 +623,7 @@ class MainActivity : AppCompatActivity() {
             brightness = sliderBrightness.value.toInt(),
             contrast = sliderContrast.value.toInt(),
             invert = switchInvert.isChecked,
-            polaroid = switchPolaroid.isChecked && !label.round,
+            instant = switchInstant.isChecked && !label.round,
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,
@@ -638,8 +643,8 @@ class MainActivity : AppCompatActivity() {
         l.window?.let { return (it.w / it.h).toFloat() }
         if (l.round) return 1f
         val (wmm, hmm) = labelSizeMm()
-        if (switchPolaroid.isChecked) {
-            val r = ImageProcessor.polaroidPhotoRect(ImageProcessor.mmToPx(minOf(wmm, 50.0)), ImageProcessor.mmToPx(hmm))
+        if (switchInstant.isChecked) {
+            val r = ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, 50.0)), ImageProcessor.mmToPx(hmm))
             return r.width().toFloat() / r.height()
         }
         return (minOf(wmm, 50.0) / hmm).toFloat()
@@ -819,6 +824,7 @@ class MainActivity : AppCompatActivity() {
             photoAspect = photoAspect(),
             options = photoOptions(ImageProcessor.Fit.COVER),
             density = sliderDensity.value.toInt(),
+            speed = prefs.getInt("speed", 1),
             labelType = intArrayOf(1, 2, 3, 5)[paperIndex],
             copies = num(editCopies.text, 1.0).toInt().coerceIn(1, 20),
         )
@@ -832,6 +838,7 @@ class MainActivity : AppCompatActivity() {
         val copies = num(editCopies.text, 1.0).toInt().coerceIn(1, 999)
         val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
         val textStyle = if (textMode) currentTextStyle() else null
+        p.speed = prefs.getInt("speed", 1)
         btnPrint.isEnabled = false
         btnPrint.setText(R.string.printing)
         progress.visibility = View.VISIBLE

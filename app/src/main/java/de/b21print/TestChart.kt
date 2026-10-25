@@ -34,6 +34,13 @@ object TestChart {
         'I' to ".###.|..#..|..#..|..#..|..#..|..#..|.###.",
         'N' to "#...#|##..#|#.#.#|#.#.#|#..##|#...#|#...#",
         'T' to "#####|..#..|..#..|..#..|..#..|..#..|..#..",
+        'A' to ".###.|#...#|#...#|#####|#...#|#...#|#...#",
+        'C' to ".###.|#...#|#....|#....|#....|#...#|.###.",
+        'D' to "####.|#...#|#...#|#...#|#...#|#...#|####.",
+        'E' to "#####|#....|#....|####.|#....|#....|#####",
+        'F' to "#####|#....|#....|####.|#....|#....|#....",
+        'L' to "#....|#....|#....|#....|#....|#....|#####",
+        'S' to ".####|#....|#....|.###.|....#|....#|####.",
     ).mapValues { it.value.split('|') }
 
     // Chart for a photo area of w × h print pixels. Round labels get the chart inside the
@@ -55,6 +62,49 @@ object TestChart {
         val px = IntArray(gray.size) { val v = gray[it]; (0xff shl 24) or (v shl 16) or (v shl 8) or v }
         return Bitmap.createBitmap(px, bw, bh, Bitmap.Config.ARGB_8888)
     }
+
+    const val CAL_STEPS = 25
+
+    // Calibration chart at print resolution (1 px = 1 dot), already dithered, so it reaches the
+    // printer unchanged when printed with the hard-threshold raster. 5 × 5 patches of the tones
+    // 255 · (1 − i / 24), row by row, with white gutters as a local paper-white reference, solid
+    // corner squares for locating the chart in a photo, and the print settings as text.
+    fun calibration(w: Int, h: Int, caption: String): Bitmap {
+        val px = IntArray(w * h) { -1 }
+        fun fill(x0: Int, y0: Int, x1: Int, y1: Int) {
+            for (y in maxOf(0, y0) until minOf(h, y1)) for (x in maxOf(0, x0) until minOf(w, x1)) px[y * w + x] = BLACK
+        }
+        val mm = 591 / 50f
+        val m = (2.5f * mm).toInt()          // edge margin
+        val f = (3f * mm).toInt()            // corner square
+        for ((cx, cy) in listOf(m to m, w - m - f to m, m to h - m - f, w - m - f to h - m - f)) fill(cx, cy, cx + f, cy + f)
+        val gut = (1f * mm).toInt()
+        val left = m + f + gut; val right = w - m - f - gut
+        val top = m + f + gut; val bottom = h - m - f - gut
+        val cw = (right - left - 4 * gut) / 5
+        val ch = (bottom - top - 4 * gut) / 5
+        for (i in 0 until CAL_STEPS) {
+            val x0 = left + (i % 5) * (cw + gut)
+            val y0 = top + (i / 5) * (ch + gut)
+            val bits = ImageProcessor.ditherFlat(255f * (1f - i / (CAL_STEPS - 1f)), cw, ch)
+            for (y in 0 until ch) for (x in 0 until cw) if (bits[y * cw + x].toInt() != 0) px[(y0 + y) * w + x0 + x] = BLACK
+        }
+        // Caption between the bottom corner squares
+        val s = maxOf(1, (f / 9))
+        var x = m + f + gut
+        val y = h - m - f + (f - 7 * s) / 2
+        for (c in caption.uppercase()) {
+            FONT[c]?.let { g ->
+                for ((ry, line) in g.withIndex()) for ((rx, ch2) in line.withIndex()) {
+                    if (ch2 == '#') fill(x + rx * s, y + ry * s, x + rx * s + s, y + ry * s + s)
+                }
+            }
+            x += 6 * s
+        }
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    private const val BLACK = 0xff000000.toInt()
 
     private fun draw(W: Int, H: Int): IntArray {
         val buf = IntArray(W * H) { 255 }

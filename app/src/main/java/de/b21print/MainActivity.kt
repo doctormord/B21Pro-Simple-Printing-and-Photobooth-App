@@ -94,6 +94,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchOverscan: MaterialSwitch
     private lateinit var switchInvert: MaterialSwitch
     private var raster = ImageProcessor.Raster.PHOTO
+    // The calibration chart is pre-dithered and must reach the printer unchanged
+    private var calibration = false
     private lateinit var toggleFont: MaterialButtonToggleGroup
     private lateinit var toggleStyle: MaterialButtonToggleGroup
     private lateinit var toggleFrame: MaterialButtonToggleGroup
@@ -204,11 +206,14 @@ class MainActivity : AppCompatActivity() {
         sliderDensity.addOnChangeListener { _, v, _ ->
             txtDensity.text = v.toInt().toString()
             prefs.edit().putInt("density", v.toInt()).apply()
+            // Keep the settings printed on the calibration chart current
+            if (calibration) loadTestChart(calibrate = true)
         }
         val toggleSpeed = findViewById<MaterialButtonToggleGroup>(R.id.toggleSpeed)
         toggleSpeed.check(if (prefs.getInt("speed", 1) == 0) R.id.speedFast else R.id.speedFine)
         toggleSpeed.addOnButtonCheckedListener { _, id, checked ->
             if (checked) prefs.edit().putInt("speed", if (id == R.id.speedFast) 0 else 1).apply()
+            if (checked && calibration) loadTestChart(calibrate = true)
         }
 
         // Label
@@ -622,6 +627,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 ImageStore.reset(source!!)
                 source = null
+                calibration = false
                 openCrop()
             } catch (e: Exception) {
                 log("Could not load image: ${e.message}")
@@ -663,6 +669,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun photoOptions(fit: ImageProcessor.Fit): ImageProcessor.Options {
         val label = selectedLabel
+        if (calibration) return ImageProcessor.Options(
+            fit = fit, rotation = 0, raster = ImageProcessor.Raster.TEXT,
+            brightness = 0, contrast = 0, invert = false,
+            instant = switchInstant.isChecked && !label.round, caption = "",
+        )
         return ImageProcessor.Options(
             fit = fit,
             rotation = 0,
@@ -1005,8 +1016,9 @@ class MainActivity : AppCompatActivity() {
             })
             addView(row(
                 button("Test chart") { dialog?.dismiss(); loadTestChart() },
-                button("Diagnostics", p != null) { scope.launch { p?.diagnose() } },
+                button("Calibration") { dialog?.dismiss(); loadTestChart(calibrate = true) },
             ))
+            addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
             })
@@ -1043,7 +1055,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Test chart sized to the area the photo goes into, loaded like a cropped photo
-    private fun loadTestChart() {
+    private fun loadTestChart(calibrate: Boolean = false) {
         val l = selectedLabel
         val (wmm, hmm) = labelSizeMm()
         val w: Int
@@ -1059,14 +1071,20 @@ class MainActivity : AppCompatActivity() {
             else -> { w = ImageProcessor.mmToPx(minOf(wmm, 50.0)); h = ImageProcessor.mmToPx(hmm) }
         }
         scope.launch {
-            val chart = withContext(Dispatchers.Default) { TestChart.create(w, h, l.round) }
+            val density = sliderDensity.value.toInt()
+            val speed = if (prefs.getInt("speed", 1) == 0) "FAST" else "FINE"
+            // The calibration chart is made at print resolution, so it is drawn 1:1
+            val chart = withContext(Dispatchers.Default) {
+                if (calibrate) TestChart.calibration(w, h, "CAL D$density $speed") else TestChart.create(w, h, l.round)
+            }
+            calibration = calibrate
             findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode).check(R.id.modeAppPhoto)
             ImageStore.reset(chart)
             ImageStore.cropped = chart
             source = chart
             applyModeVisibility()
             scheduleRender()
-            log("Test chart ${w}×${h} px (${l.title(this@MainActivity)})")
+            log((if (calibrate) "Calibration chart" else "Test chart") + " ${w}×${h} px (${l.title(this@MainActivity)})")
         }
     }
 

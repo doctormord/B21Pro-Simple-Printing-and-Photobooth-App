@@ -502,6 +502,13 @@ object ImageProcessor {
         for ((j, y) in rows.withIndex()) System.arraycopy(bb, j * w, bits, y * w, w)
     }
 
+    // A flat tone through the photo dither, for the calibration chart
+    fun ditherFlat(tone: Float, w: Int, h: Int): ByteArray {
+        val bits = ByteArray(w * h)
+        atkinson(FloatArray(w * h) { tone }, w, h, bits)
+        return bits
+    }
+
     private fun floyd(gray: FloatArray, w: Int, h: Int, bits: ByteArray) {
         for (y in 0 until h) for (x in 0 until w) {
             val i = y * w + x

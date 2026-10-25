@@ -9,6 +9,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import kotlin.math.pow
 
 object ImageProcessor {
     enum class Fit { CONTAIN, COVER, STRETCH }
@@ -33,6 +34,8 @@ object ImageProcessor {
         // Round labels: print further past the rim, for rolls that sit a bit off. Not for windows:
         // the pre-printed frame is thermal paper too, overscan would grey it.
         val overscan: Boolean = false,
+        // Printer density 1..5; the photo raster corrects tones with the curve measured for it
+        val density: Int = 3,
     )
 
     // bits/width/height: what is printed (at most the print head width)
@@ -128,7 +131,8 @@ object ImageProcessor {
             if (o.caption.isNotBlank()) drawCaption(bits, w, h, area, o.caption)
         }
 
-        return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor))
+        val curve = if (o.raster == Raster.PHOTO) o.density else null
+        return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor, curve))
     }
 
     // Soft frame: how much of the photo remains (1) or fades to white (0) over the outer ~12 % of
@@ -151,6 +155,7 @@ object ImageProcessor {
 
     private fun composePreview(
         bits: ByteArray, w: Int, h: Int, labelW: Int, headLeft: Int, window: PhotoWindow?, frameColor: Int?,
+        curveDensity: Int? = null,
     ): Bitmap {
         val out = IntArray(labelW * h) { Color.WHITE }
         if (window != null && frameColor != null) {
@@ -158,6 +163,27 @@ object ImageProcessor {
             val l = mmToPx(window.x); val t = mmToPx(window.y)
             val r = mmToPx(window.x + window.w); val b = mmToPx(window.y + window.h)
             for (y in t until minOf(b, h)) for (x in l until minOf(r, labelW)) out[y * labelW + x] = Color.WHITE
+        }
+        if (curveDensity != null) {
+            // Photo raster: show each spot as dark as the measured print curve says for its local
+            // dot coverage (3 × 3), so the preview matches the paper
+            val shade = IntArray(10) { n ->
+                val r = 1f - PrintCurve.darkness(curveDensity, 255f * (1f - n / 9f))
+                val s = if (r <= 0.0031308f) r * 12.92f else 1.055f * r.toDouble().pow(1 / 2.4).toFloat() - 0.055f
+                val g = (255 * s).toInt().coerceIn(0, 255)
+                Color.rgb(g, g, g)
+            }
+            for (y in 0 until h) for (x in 0 until w) {
+                var n = 0
+                for (dy in -1..1) for (dx in -1..1) {
+                    val yy = (y + dy).coerceIn(0, h - 1); val xx = (x + dx).coerceIn(0, w - 1)
+                    n += bits[yy * w + xx]
+                }
+                if (n > 0) out[y * labelW + headLeft + x] = shade[n]
+            }
+            return Bitmap.createBitmap(out, labelW, h, Bitmap.Config.ARGB_8888).let {
+                if (window != null && frameColor != null) decorateFilm(it, window) else it
+            }
         }
         // Simulate the printed dot: each black cell bleeds a little into its neighbours, so the
         // preview darkens by the same amount the tones were pre-lightened for. Preview ≈ print.
@@ -390,8 +416,8 @@ object ImageProcessor {
         val bright = o.brightness * 1.5f
         val photo = o.raster != Raster.TEXT
         // Dot gain only matters for patterns of single dots; coarse cells and thick lines print true
-        val fine = o.raster == Raster.PHOTO || o.raster == Raster.DOTS ||
-            o.raster == Raster.SCANLINES || o.raster == Raster.SCANLINES_WIDE
+        val fine = o.raster == Raster.DOTS || o.raster == Raster.SCANLINES || o.raster == Raster.SCANLINES_WIDE
+        val curve = PrintCurve.lut(o.density)
 
         // Unsharp mask (3×3); kept light so scaled high-contrast edges do not bloom at full heat
         val src = gray.copyOf()
@@ -404,7 +430,12 @@ object ImageProcessor {
             }
             v = (v - lo) / (hi - lo) * 255f
             v = (v - 128f) * contrast + 128f + bright
-            if (fine) {
+            if (o.raster == Raster.PHOTO) {
+                // Measured print curve (PrintCurve): dither input that prints the target darkness
+                val k = v.coerceIn(0f, 255f)
+                val k0 = k.toInt().coerceAtMost(254)
+                v = curve[k0] + (curve[k0 + 1] - curve[k0]) * (k - k0)
+            } else if (fine) {
                 // Dot-gain compensation in ink-coverage space (d = 1 - v, 1 = full black). It also
                 // applies in the highlights: the dither now puts dots there, and uncorrected they
                 // printed light skin and white fabric grey.

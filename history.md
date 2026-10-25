@@ -4,6 +4,27 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.5 (2026-10-25)
+
+### Measured tone curve instead of a dot-gain formula
+Mid-tones from about tone 180 down still ran together (test chart steps 7–10 merged). A calibration
+chart was added: 25 flat tones, pre-dithered with the photo dither and printed dot for dot, read
+back from a phone photo by `tools/calib.py` (corner marks for perspective, white gutters as local
+paper reference, sRGB decoded to linear light). Printed darkness on original rolls, fine speed:
+
+| Dither input tone | 255 | 223 | 191 | 170 | 149 | 128 | 106 | 85 |
+|-------------------|----:|----:|----:|----:|----:|----:|----:|---:|
+| Density 1         | 0   | .08 | .16 | .42 | .68 | .76 | .95 | .99 |
+| Density 5         | 0   | .12 | .25 | .59 | .81 | .86 | .98 | 1.0 |
+
+Up to ~25 % coverage single dots print true; then they merge and the curve shoots up, saturating
+around tone 110. The old formula (`d − 0.55·d·(1 − d)`) is a gentle parabola and cannot follow the
+knee, so it put most mid-tones into the saturated range. The photo look now inverts the measured
+table (densities 2–4 interpolated between 1 and 5), with a target of `1 − (v/255)^1.6`, between
+linear and sRGB. At density 5 the whole range from mid-grey to black now maps to dither inputs
+96–162, at density 1 to 21–150. The preview shades each spot by the measured darkness of its local
+dot coverage, so it still matches the paper.
+
 ## 1.3.3 (2026-10-25)
 
 ### Light tones printed grey

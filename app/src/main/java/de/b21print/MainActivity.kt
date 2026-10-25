@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
             txtDensity.text = v.toInt().toString()
             prefs.edit().putInt("density", v.toInt()).apply()
             // Keep the settings printed on the calibration chart current
-            if (calibration) loadTestChart(calibrate = true)
+            if (calibration) loadTestChart(calibrate = true) else scheduleRender()
         }
         val toggleSpeed = findViewById<MaterialButtonToggleGroup>(R.id.toggleSpeed)
         toggleSpeed.check(if (prefs.getInt("speed", 1) == 0) R.id.speedFast else R.id.speedFine)
@@ -684,6 +684,7 @@ class MainActivity : AppCompatActivity() {
             instant = switchInstant.isChecked && !label.round,
             softEdge = switchSoftEdge.isChecked,
             overscan = switchOverscan.isChecked && label.round,
+            density = sliderDensity.value.toInt(),
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,

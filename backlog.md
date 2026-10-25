@@ -13,6 +13,12 @@ Open items, roughly in order of priority.
 
 ## Print tuning (needs paper)
 
+- Measure densities 2, 3 and 4 with the calibration chart; `PrintCurve` interpolates them from 1
+  and 5 for now. Fast speed has no curve at all.
+- Check the tone target (gamma 1.6 in `PrintCurve`) on real photos; the brightness slider covers
+  personal taste, the default should look right at 0.
+- Calibrate halftone dots and scanlines the same way; they still use the old dot-gain formula.
+
 - Print the raster looks on real rolls and check tone. Line screen, Macintosh, Amiga and fax skip
   dot-gain compensation on the assumption that coarse cells print true; they may need a weaker
   correction of their own.

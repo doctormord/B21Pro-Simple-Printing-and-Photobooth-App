@@ -54,7 +54,7 @@ moiré there that does not appear on paper.
 
 | Look           | How it works                                                                 |
 |----------------|------------------------------------------------------------------------------|
-| Photo          | Atkinson error diffusion. Light tones pass on the full error, so highlights keep a few dots instead of burning out, while paper white stays blank. |
+| Photo          | Atkinson error diffusion with tones corrected by the printer's measured response (see below). Light tones pass on the full error, so highlights keep a few dots instead of burning out, while paper white stays blank. |
 | Halftone dots  | Round dots on a 45° screen, about 0.5 mm pitch                               |
 | Line screen    | Horizontal lines, 0.6 mm apart; the line thickness carries the tone (engraving style) |
 | TV scanlines   | The picture sits in bands of dot rows with a white gap: 4 + 2 rows, or 6 + 4 rows for *wide*. Dot spread closes about one row of the gap, so the wide version is the one that shows on small labels. |
@@ -67,10 +67,18 @@ Close-up, about twice the printed size:
 
 ![Raster detail](docs/raster-detail.png)
 
-Thermal dots spread into their neighbours, so a pattern of single dots prints darker than it looks
-on screen. Photo, halftone dots and TV scanlines are lightened in the mid-tones to compensate, and
-the preview simulates the spread. The coarse looks print close to their nominal tone and are not
-corrected.
+### Tone correction
+
+Thermal dots spread into their neighbours, and not evenly: measured with the calibration chart,
+isolated dots print about as dark as their share of the area, but from roughly 25 % coverage on they
+merge, and below tone ~110 everything prints solid black. The photo look therefore corrects tones
+with a table measured per print density (`PrintCurve.kt`) instead of a formula: for each photo tone
+it picks the dither input that prints the intended darkness, and the preview uses the same
+measurement. The intended darkness lies between a linear mapping and the screen's sRGB curve
+(gamma 1.6), which suits small thermal prints.
+
+Halftone dots and TV scanlines still use a simple dot-gain formula; the coarse looks print close to
+their nominal tone and are not corrected.
 
 ## Settings
 
@@ -169,8 +177,8 @@ the BLE characteristic and shows every reply. It also offers:
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
   the log at the bottom of the main screen.
 - **Calibration**: a 5 × 5 chart of flat tones, already dithered and printed dot for dot without
-  any image processing, with the density and speed printed on it. A photo of it shows how each tone
-  input to the dither actually prints.
+  any image processing, with the density and speed printed on it. `tools/calib.py` reads a photo of
+  it and reports how dark each patch printed; those numbers are the tables in `PrintCurve.kt`.
 - **Log** with copy and clear buttons; it also shows the app's own log lines while open.
 - **Flash firmware**: sends a `.bin` firmware image over Bluetooth. The version is taken from the
   file name (e.g. `B21_Pro_3.10.bin` → 3.10). The printer verifies the image before committing it;
@@ -205,7 +213,8 @@ main reference.
 | `Niimbot.kt`                     | packet encoding and parsing, row encoding                      |
 | `B21Printer.kt`                  | BLE connection, print sequence, firmware update                |
 | `ImageProcessor.kt`              | scaling, tone curve, dot gain, raster looks, frame and window composition |
-| `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`)               |
+| `PrintCurve.kt`                  | measured tone response per density, tone correction table     |
+| `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration chart |
 | `TextLabel.kt`                   | sign rendering                                                 |
 | `Labels.kt`                      | label presets                                                  |
 | `MainActivity.kt`                | main screen                                                    |

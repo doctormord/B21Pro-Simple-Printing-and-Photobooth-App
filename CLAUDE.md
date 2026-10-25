@@ -29,7 +29,8 @@ There are no unit tests; changes are checked in the emulator and on paper.
 1. Scale the photo into the photo area at print resolution (300 dpi, 591-dot head):
    area-average downscale with a small pre-blur.
 2. `prepare`: auto levels (1 % black point, 99.9 % white point), sharpening, brightness/contrast,
-   dot-gain compensation (only for looks made of single dots), invert, then the soft-edge fade.
+   tone correction (photo look: measured table from `PrintCurve`; halftone/scanlines: dot-gain
+   formula; coarse looks: none), invert, then the soft-edge fade.
    The fade must come after the levels step, or the added white darkens the photo.
 3. `toBits`: the raster look, at print resolution. Nothing is scaled after this point.
 4. `composePreview`: preview bitmap with simulated dot spread; only this is scaled on screen.
@@ -37,8 +38,9 @@ There are no unit tests; changes are checked in the emulator and on paper.
 Things that look like bugs but are deliberate:
 - Atkinson passes on the full error for light tones (`atkinson`). Plain Atkinson cannot put a dot
   into any flat tone above ~223. Do not reintroduce a white-point headroom to fix highlights.
-- Dot-gain compensation runs over the full tone range. Tapering it out in the highlights made light
-  skin print grey once the dither started putting dots there.
+- The photo look's tone correction is a measured table, not a formula: the printer has a sharp
+  knee at ~25 % coverage. To re-measure, print the calibration chart (debug console), photograph it
+  and run `tools/calib.py`; the result goes into `PrintCurve.kt` (one table per density).
 - Round labels and Memory Film print past the edge (bleed), round labels are not masked.
 
 ## Conventions

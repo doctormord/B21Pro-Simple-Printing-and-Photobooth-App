@@ -124,6 +124,32 @@ JDK 17 and the Android SDK (API 34) are required.
 # app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Signing
+
+`./gradlew assembleRelease` signs with the key configured in `~/.gradle/gradle.properties`, or with
+the local debug key if there is none. The key never goes into the repository.
+
+To sign with your own key, create it once (keep the file and password safe; without them you
+cannot publish updates):
+
+```sh
+keytool -genkeypair -keystore ~/.android/b21print-release.jks -alias b21print \
+        -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=B21 Print"
+```
+
+and add to `~/.gradle/gradle.properties`:
+
+```properties
+B21_KEYSTORE=~/.android/b21print-release.jks
+B21_KEYSTORE_PASSWORD=...
+B21_KEY_ALIAS=b21print
+B21_KEY_PASSWORD=...
+```
+
+The output is `app/build/outputs/apk/release/app-release.apk`. Android only installs an update if
+it is signed with the same key as the installed app, so your own builds and the release APKs
+cannot replace each other.
+
 ## Debug console
 
 Long-press the *B21 Print* title. With a printer connected, the console sends raw text commands to

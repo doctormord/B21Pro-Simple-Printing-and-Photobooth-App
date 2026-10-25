@@ -42,7 +42,11 @@ Things that look like bugs but are deliberate:
 ## Conventions
 
 - Bump `versionCode` and `versionName` in `app/build.gradle.kts` for every APK handed out.
-- Release APKs are debug-signed (`B21Print-<version>.apk`, attached to a GitHub release).
+- Release APKs come from `./gradlew assembleRelease` (`B21Print-<version>.apk`, attached to a
+  GitHub release). Signing is configured outside the repo in `~/.gradle/gradle.properties`
+  (`B21_KEYSTORE`, `B21_KEYSTORE_PASSWORD`, `B21_KEY_ALIAS`, `B21_KEY_PASSWORD`); without it the
+  debug key is used. Never commit a keystore or passwords, and check that no personal names end up
+  in commits, files or certificates.
 - Comments explain why, not what; match the existing density.
 - Settings that should survive a restart go into the `prefs` SharedPreferences.
 

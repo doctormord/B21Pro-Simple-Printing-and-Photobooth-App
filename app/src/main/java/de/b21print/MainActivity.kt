@@ -44,7 +44,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.slider.Slider
-import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.Dispatchers
@@ -91,8 +90,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editCopies: TextInputEditText
     private lateinit var editText: TextInputEditText
     private lateinit var switchInstant: MaterialSwitch
+    private lateinit var switchSoftEdge: MaterialSwitch
+    private lateinit var switchOverscan: MaterialSwitch
     private lateinit var switchInvert: MaterialSwitch
-    private lateinit var toggleMode: MaterialButtonToggleGroup
+    private var raster = ImageProcessor.Raster.PHOTO
     private lateinit var toggleFont: MaterialButtonToggleGroup
     private lateinit var toggleStyle: MaterialButtonToggleGroup
     private lateinit var toggleFrame: MaterialButtonToggleGroup
@@ -122,8 +123,9 @@ class MainActivity : AppCompatActivity() {
         editCopies = findViewById(R.id.editCopies)
         editText = findViewById(R.id.editText)
         switchInstant = findViewById(R.id.switchInstant)
+        switchSoftEdge = findViewById(R.id.switchSoftEdge)
+        switchOverscan = findViewById(R.id.switchOverscan)
         switchInvert = findViewById(R.id.switchInvert)
-        toggleMode = findViewById(R.id.toggleMode)
         toggleFont = findViewById(R.id.toggleFont)
         toggleStyle = findViewById(R.id.toggleStyle)
         toggleFrame = findViewById(R.id.toggleFrame)
@@ -178,9 +180,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Print
-        val dropPaper = findViewById<MaterialAutoCompleteTextView>(R.id.dropPaper)
-        dropPaper.setText(resources.getStringArray(R.array.paper)[0], false)
-        dropPaper.setOnItemClickListener { _, _, pos, _ -> paperIndex = pos }
+        // Paper type: a choice dialog instead of a dropdown, which had no room to open above the print bar
+        val paperNames = resources.getStringArray(R.array.paper)
+        val dropPaper = findViewById<TextInputEditText>(R.id.dropPaper)
+        paperIndex = prefs.getInt("paper", 0).coerceIn(0, paperNames.size - 1)
+        dropPaper.setText(paperNames[paperIndex])
+        val pickPaper = View.OnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.paper_type)
+                .setSingleChoiceItems(paperNames, paperIndex) { d, pos ->
+                    paperIndex = pos
+                    prefs.edit().putInt("paper", pos).apply()
+                    dropPaper.setText(paperNames[pos])
+                    d.dismiss()
+                }
+                .show()
+        }
+        dropPaper.setOnClickListener(pickPaper)
+        findViewById<TextInputLayout>(R.id.paperLayout).setEndIconOnClickListener(pickPaper)
         val txtDensity = findViewById<TextView>(R.id.txtDensity)
         sliderDensity.value = prefs.getInt("density", 2).toFloat()
         txtDensity.text = sliderDensity.value.toInt().toString()
@@ -199,6 +216,16 @@ class MainActivity : AppCompatActivity() {
         editHeight.doAfterTextChanged { onSizeEdited() }
         editCaption.doAfterTextChanged { scheduleRender() }
         switchInstant.setOnCheckedChangeListener { _, _ -> applyModeVisibility(); scheduleRender() }
+        switchOverscan.isChecked = prefs.getBoolean("overscan", false)
+        switchOverscan.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("overscan", on).apply()
+            scheduleRender()
+        }
+        switchSoftEdge.isChecked = prefs.getBoolean("softEdge", false)
+        switchSoftEdge.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("softEdge", on).apply()
+            scheduleRender()
+        }
         // Fine-tuning is stored per label (calibrate once)
         val txtOffX = findViewById<TextView>(R.id.txtOffsetX)
         val txtOffY = findViewById<TextView>(R.id.txtOffsetY)
@@ -217,7 +244,25 @@ class MainActivity : AppCompatActivity() {
 
         // Image
         switchInvert.setOnCheckedChangeListener { _, _ -> scheduleRender() }
-        toggleMode.addOnButtonCheckedListener { _, _, checked -> if (checked) scheduleRender() }
+        val rasterNames = resources.getStringArray(R.array.raster)
+        val dropRaster = findViewById<TextInputEditText>(R.id.dropRaster)
+        raster = ImageProcessor.Raster.entries.firstOrNull { it.name == prefs.getString("raster", null) }
+            ?: ImageProcessor.Raster.PHOTO
+        dropRaster.setText(rasterNames[raster.ordinal])
+        val pickRaster = View.OnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.raster)
+                .setSingleChoiceItems(rasterNames, raster.ordinal) { d, pos ->
+                    raster = ImageProcessor.Raster.entries[pos]
+                    prefs.edit().putString("raster", raster.name).apply()
+                    dropRaster.setText(rasterNames[pos])
+                    d.dismiss()
+                    scheduleRender()
+                }
+                .show()
+        }
+        dropRaster.setOnClickListener(pickRaster)
+        findViewById<TextInputLayout>(R.id.rasterLayout).setEndIconOnClickListener(pickRaster)
         sliderBrightness.addOnChangeListener { _, _, _ -> scheduleRender() }
         sliderContrast.addOnChangeListener { _, _, _ -> scheduleRender() }
         findViewById<MaterialButton>(R.id.btnResetTone).setOnClickListener {
@@ -284,6 +329,8 @@ class MainActivity : AppCompatActivity() {
         show(R.id.textCard, !photo)
         show(R.id.windowTuning, win)
         show(R.id.switchInstant, photo && !win && !selectedLabel.round)
+        show(R.id.switchSoftEdge, photo)
+        show(R.id.switchOverscan, photo && (win || selectedLabel.round))
         show(R.id.captionLayout, photo && !win && switchInstant.isChecked)
     }
 
@@ -615,15 +662,13 @@ class MainActivity : AppCompatActivity() {
         return ImageProcessor.Options(
             fit = fit,
             rotation = 0,
-            raster = when (toggleMode.checkedButtonId) {
-                R.id.modeDots -> ImageProcessor.Raster.DOTS
-                R.id.modeText -> ImageProcessor.Raster.TEXT
-                else -> ImageProcessor.Raster.PHOTO
-            },
+            raster = raster,
             brightness = sliderBrightness.value.toInt(),
             contrast = sliderContrast.value.toInt(),
             invert = switchInvert.isChecked,
             instant = switchInstant.isChecked && !label.round,
+            softEdge = switchSoftEdge.isChecked,
+            overscan = switchOverscan.isChecked,
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,
@@ -666,13 +711,21 @@ class MainActivity : AppCompatActivity() {
     private fun watchKeyboard() {
         val root = findViewById<View>(android.R.id.content)
         val stage = findViewById<View>(R.id.stage)
-        // In tablet landscape the preview fills the left column
-        if (stage.tag == "fill") return
+        val printBar = findViewById<View>(R.id.printBar)
         val normal = resources.getDimension(R.dimen.stage_height)
         root.viewTreeObserver.addOnGlobalLayoutListener {
             val r = android.graphics.Rect()
             root.getWindowVisibleDisplayFrame(r)
             val keyboard = root.rootView.height - r.bottom > root.rootView.height * 0.2
+            // The print bar only takes room from the text field while typing
+            val bar = if (keyboard) View.GONE else View.VISIBLE
+            if (printBar.visibility != bar) {
+                printBar.visibility = bar
+                // The preview column changed size with the keyboard: fit the preview again
+                if (stage.tag == "fill") scheduleRender()
+            }
+            // In tablet landscape the preview fills the left column
+            if (stage.tag == "fill") return@addOnGlobalLayoutListener
             val target = if (keyboard) dp(130f).toInt() else normal.toInt()
             if (stage.layoutParams.height != target) {
                 stage.layoutParams = stage.layoutParams.apply { height = target }
@@ -861,8 +914,19 @@ class MainActivity : AppCompatActivity() {
     // Hidden debug console: sends a raw text command to the BLE characteristic and shows every
     // reply. Also hosts printer diagnostics and the firmware flasher.
     private fun showDebugConsole() {
-        val p = printer ?: return toast(getString(R.string.print_need_printer))
+        val p = printer
+        if (p == null) {
+            // Without a printer only the test chart is useful
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Debug console")
+                .setMessage(getString(R.string.print_need_printer))
+                .setPositiveButton("Load test chart") { _, _ -> loadTestChart() }
+                .setNegativeButton(R.string.close, null)
+                .show()
+            return
+        }
         val pad = dp(16f).toInt()
+        var dialog: androidx.appcompat.app.AlertDialog? = null
         val input = com.google.android.material.textfield.TextInputEditText(this).apply {
             setText("test get sensor"); setSingleLine(true)
         }
@@ -912,6 +976,11 @@ class MainActivity : AppCompatActivity() {
                 text = "Send a raw command to the firmware debug console. Read-only commands only."
                 textSize = 12f; setPadding(0, 0, 0, dp(8f).toInt())
             })
+            addView(com.google.android.material.button.MaterialButton(
+                this@MainActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "Load test chart for this label"; textSize = 12f
+                setOnClickListener { dialog?.dismiss(); loadTestChart() }
+            })
             addView(com.google.android.material.textfield.TextInputLayout(this@MainActivity).apply { addView(input) })
             addView(presets)
             addView(control)
@@ -929,16 +998,17 @@ class MainActivity : AppCompatActivity() {
             addView(crlf)
             addView(scroll)
         }
-        val dialog = MaterialAlertDialogBuilder(this)
+        val dlg = MaterialAlertDialogBuilder(this)
             .setTitle("Debug console")
             .setView(body)
             .setPositiveButton("Send", null)
             .setNegativeButton(R.string.close) { d, _ -> d.dismiss() }
             .setOnDismissListener { p.rawListener = null }
             .create()
-        dialog.show()
+        dialog = dlg
+        dlg.show()
         // Keep the dialog open after Send
-        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        dlg.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             var cmd = input.text?.toString().orEmpty()
             if (crlf.isChecked) cmd += "\r\n"
             appendLog("TX \"${cmd.replace("\r","\\r").replace("\n","\\n")}\"")
@@ -946,6 +1016,34 @@ class MainActivity : AppCompatActivity() {
                 try { p.sendRaw(cmd.toByteArray(Charsets.US_ASCII)) }
                 catch (e: Exception) { appendLog("Error: ${e.message}") }
             }
+        }
+    }
+
+    // Test chart sized to the area the photo goes into, loaded like a cropped photo
+    private fun loadTestChart() {
+        val l = selectedLabel
+        val (wmm, hmm) = labelSizeMm()
+        val w: Int
+        val h: Int
+        val win = l.window
+        when {
+            win != null -> { w = ImageProcessor.mmToPx(win.w); h = ImageProcessor.mmToPx(win.h) }
+            l.round -> { w = ImageProcessor.mmToPx(wmm); h = w }
+            switchInstant.isChecked -> {
+                val r = ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, 50.0)), ImageProcessor.mmToPx(hmm))
+                w = r.width(); h = r.height()
+            }
+            else -> { w = ImageProcessor.mmToPx(minOf(wmm, 50.0)); h = ImageProcessor.mmToPx(hmm) }
+        }
+        scope.launch {
+            val chart = withContext(Dispatchers.Default) { TestChart.create(w, h, l.round) }
+            findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode).check(R.id.modeAppPhoto)
+            ImageStore.reset(chart)
+            ImageStore.cropped = chart
+            source = chart
+            applyModeVisibility()
+            scheduleRender()
+            log("Test chart ${w}×${h} px (${l.title(this@MainActivity)})")
         }
     }
 

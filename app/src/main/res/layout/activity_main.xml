@@ -241,6 +241,12 @@
                 <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchInstant"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="4dp" android:text="@string/instant_frame" />
+                <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchSoftEdge"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:text="@string/soft_edge" />
+                <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchOverscan"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:text="@string/overscan" />
                 <com.google.android.material.textfield.TextInputLayout android:id="@+id/captionLayout"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -263,20 +269,15 @@
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleMode"
+                <com.google.android.material.textfield.TextInputLayout android:id="@+id/rasterLayout"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/modePhoto">
-                    <com.google.android.material.button.MaterialButton android:id="@+id/modePhoto"
-                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp"
-                        android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/mode_photo" />
-                    <com.google.android.material.button.MaterialButton android:id="@+id/modeDots"
-                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp"
-                        android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/raster_dots" />
-                    <com.google.android.material.button.MaterialButton android:id="@+id/modeText"
-                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp"
-                        android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/raster_text"
-                        android:maxLines="1" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
+                    android:hint="@string/raster" app:endIconMode="custom" app:endIconDrawable="@drawable/ic_arrow_drop_down">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/dropRaster"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:inputType="none" android:maxLines="1"
+                        android:focusable="false" android:cursorVisible="false" />
+                </com.google.android.material.textfield.TextInputLayout>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginTop="12dp">
@@ -346,13 +347,14 @@
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginTop="4dp">
                     <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                        android:id="@+id/paperLayout" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="0dp" android:layout_weight="2" android:layout_height="wrap_content"
-                        android:hint="@string/paper_type" android:layout_marginEnd="6dp">
-                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:hint="@string/paper_type" android:layout_marginEnd="6dp"
+                        app:endIconMode="custom" app:endIconDrawable="@drawable/ic_arrow_drop_down">
+                        <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/dropPaper" android:layout_width="match_parent"
                             android:layout_height="wrap_content" android:inputType="none" android:maxLines="1"
-                            app:simpleItems="@array/paper" />
+                            android:focusable="false" android:cursorVisible="false" />
                     </com.google.android.material.textfield.TextInputLayout>
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -376,7 +378,7 @@
     </androidx.core.widget.NestedScrollView>
 
     <!-- Print bar -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    <LinearLayout android:id="@+id/printBar" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="16dp"
         android:paddingTop="8dp" android:paddingBottom="12dp">
         <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/progress"

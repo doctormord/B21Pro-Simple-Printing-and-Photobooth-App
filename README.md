@@ -1,7 +1,7 @@
 # B21 Print
 
-A small Android app for the NIIMBOT B21 Pro label printer: print photos and text labels over
-Bluetooth, without an account, cloud catalog or RFID roll check. Includes a photo booth mode
+An Android app for the NIIMBOT B21 Pro label printer. It prints photos and text signs over
+Bluetooth, with no account, no cloud catalog and no RFID roll check, and it has a photo booth mode
 for tablets.
 
 <p>
@@ -12,36 +12,90 @@ for tablets.
 ## Features
 
 **Photos**
-- Camera, gallery, or *Share* from any other app; crop with label-shaped or free framing
-- Three raster modes: photo (Atkinson dithering), dots (halftone), text/logo (hard threshold)
-- Brightness, contrast, invert
+- Camera, gallery, or *Share* from any other app; crop to the label shape or freely
+- Eight raster looks (see below), brightness, contrast, invert
+- Soft edge: the photo fades to white towards its border, round on circle labels
 - Instant frame with an optional caption, printed by the app on plain labels
-- NB835 *Memory Film* labels with a pre-printed frame: prints only into the window, with
-  per-label offset fine-tuning that is remembered
+- NB835 *Memory Film* labels with a pre-printed frame: only the window is printed, with a
+  per-label offset that is remembered
+- Round labels and Memory Film print 0.6 mm past the edge so a slightly shifted roll leaves no
+  white gap; *Overscan* raises this to 2 mm
 
 **Signs**
-- Short text, centered and automatically sized, 1–3 lines
+- Short text, centered and sized automatically, 1–3 lines
 - Three fonts, bold/italic/underline, five frame styles
 - Voice input
-- History of the last 50 printed signs and saved templates
+- History of the last 50 printed signs, and saved templates
 
 **Photo booth**
 - Full-screen front camera with the printable area marked
 - Countdown (off/3/5/10 s) and screen flash
 - Review before printing: delete or print, then print again or take the next photo
-- Uses the label, frame, caption, tone and density settings from the main screen
+- Uses the label, frame, caption, raster and density settings from the main screen
 - Volume keys and Bluetooth selfie remotes work as a shutter
 
-**Labels**
-- Presets for common B21 sizes (rectangular, square, round, instant-style) and a custom size
+**Labels and printing**
+- Presets for common B21 sizes (rectangular, square, round, instant style) and a custom size
   (print width up to 50 mm, length up to 200 mm)
 - Gap, black mark, continuous and transparent paper; multiple copies
-- Density 1–5 and two print speeds (fine/fast), both printer-side; dot-gain compensation on the
-  image side so the print matches the preview
+- Print density 1–5 and two print speeds (fine/fast), both set on the printer
 
 **Layout**
 - Phone, tablet portrait and a two-column tablet landscape layout
 - English and German UI
+
+## Raster looks
+
+The photo is scaled to the printer's 300 dpi first; the look is then applied pixel for pixel and
+sent to the printer as is. The on-screen preview is a scaled copy, so fine line patterns can show
+moiré there that does not appear on paper.
+
+![Raster looks](docs/raster-looks.png)
+
+| Look           | How it works                                                                 |
+|----------------|------------------------------------------------------------------------------|
+| Photo          | Atkinson error diffusion. Light tones pass on the full error, so highlights keep a few dots instead of burning out, while paper white stays blank. |
+| Halftone dots  | Round dots on a 45° screen, about 0.5 mm pitch                               |
+| Line screen    | Horizontal lines, 0.6 mm apart; the line thickness carries the tone (engraving style) |
+| TV scanlines   | The picture sits in bands of four dot rows with a two-row white gap          |
+| Macintosh      | Atkinson dithering at 72 dpi, one screen pixel = 4 × 4 printer dots          |
+| Amiga          | 4 × 4 Bayer ordered dither on 2 × 2 dot cells, the familiar cross-hatch      |
+| Fax            | 150 × 100 dpi cells, close to fax standard resolution, with Floyd–Steinberg diffusion |
+| Text/logo      | Hard threshold, for line art and logos                                       |
+
+Close-up, about twice the printed size:
+
+![Raster detail](docs/raster-detail.png)
+
+Thermal dots spread into their neighbours, so a pattern of single dots prints darker than it looks
+on screen. Photo, halftone dots and TV scanlines are lightened in the mid-tones to compensate, and
+the preview simulates the spread. The coarse looks print close to their nominal tone and are not
+corrected.
+
+## Settings
+
+<p>
+  <img src="docs/settings.png" width="49%" alt="Image and print settings">
+  <img src="docs/label-options.png" width="49%" alt="Label options with soft edge and overscan">
+</p>
+
+- **Raster**: the look, see above.
+- **Brightness / Contrast**: applied after an automatic levels step that stretches the photo to
+  full range. Only the brightest 0.1 % may clip to white, so light grey stays distinguishable from
+  paper white.
+- **Invert**: swap black and white.
+- **Soft edge**: fade to white over the outer sixth of the photo area.
+- **Overscan**: print 2 mm instead of 0.6 mm past the window or circle edge.
+- **Print density**: heat level sent to the printer. 1–2 suits photos on original rolls.
+- **Speed**: *Fine* for photos. At *Fast* the printer gives each row less time, solid areas such as
+  text still print cleanly, but single dither dots break up into noise.
+- **Paper type**: how the printer finds the next label (gap, black mark, continuous, transparent).
+
+![Soft edge](docs/soft-edge.png)
+
+Signs use the same label and print settings:
+
+![Sign mode](docs/sign.png)
 
 ## Requirements
 
@@ -49,16 +103,16 @@ for tablets.
 - A NIIMBOT B21 Pro (other B21 variants may work, untested)
 
 The app does not check the roll's RFID tag. On stock firmware, rolls without a valid NIIMBOT tag
-still print very faint because the printer firmware itself lowers the heat; the app cannot change
+still print very faint, because the printer firmware itself lowers the heat; the app cannot change
 that. With a patched printer firmware they print normally.
 
 ## Install
 
-Download the APK from the [releases](../../releases) and install it (allow installing from
-unknown sources). Then tap *Connect*; the app scans for printers whose name starts with `B21`.
+Download the APK from the [releases](../../releases) and install it (allow installing from unknown
+sources). Then tap *Connect*; the app scans for printers whose name starts with `B21`.
 
-The release APK is signed with a debug key. Uninstall it before installing a build signed with a
-different key.
+The release APK is signed with a debug key. A build signed with a different key cannot be
+installed over it; uninstall first.
 
 ## Build
 
@@ -71,26 +125,33 @@ JDK 17 and the Android SDK (API 34) are required.
 
 ## Debug console
 
-Long-press the *B21 Print* title (with a printer connected). The console sends raw text commands
-to the BLE characteristic and shows every reply. It also has:
+Long-press the *B21 Print* title. With a printer connected, the console sends raw text commands to
+the BLE characteristic and shows every reply. It also offers:
 
-- **Printer diagnostics:** queries RFID, anti-fake and status data and writes the raw replies to
+- **Test chart**: loads a chart sized to the current photo area (window, instant frame or circle)
+  into the preview, as if it were a cropped photo: tone wedge, gradient, dither patches, line and
+  checkerboard resolution, Siemens star, rings and microtext. Works without a printer.
+- **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
   the log at the bottom of the main screen.
-- **Flash firmware:** sends a `.bin` firmware image over Bluetooth. The version is taken from the
+- **Flash firmware**: sends a `.bin` firmware image over Bluetooth. The version is taken from the
   file name (e.g. `B21_Pro_3.10.bin` → 3.10). The printer verifies the image before committing it;
   a rejected or interrupted transfer leaves the old firmware running. Do not switch the printer off
   during the update.
+
+<img src="docs/test-chart.png" width="45%" alt="Test chart on a Memory Film label">
+
+`tools/mkchart.py` generates the same chart as a PNG for any label size.
 
 ## Protocol notes
 
 - BLE service `e7810a71-73ae-499d-8c15-faa9aef0c3f2`, characteristic
   `bef8d6c9-9c21-4c9e-b632-bd58c1009f9f`
 - Packets: `55 55 CMD LEN DATA… XOR AA AA`
-- The B21 Pro uses the "V4" print sequence (print start with copies and quality bytes, a 13-byte
-  page size, no page start). The app falls back to older sequences if the printer rejects it and
-  remembers what worked.
-- 300 dpi, 591-pixel print head (50 mm). Rows are sent as bitmap rows with per-third pixel
-  counts; identical rows are merged.
+- The B21 Pro uses the "V4" print sequence (print start with copies, speed and quality bytes, a
+  13-byte page size, no page start). The app falls back to older sequences if the printer rejects
+  it and remembers what worked.
+- 300 dpi, 591-dot print head (50 mm). Rows are sent as bitmap rows with per-third dot counts;
+  identical rows are merged.
 - The printer often drops the first packet after a pause, so every job starts with a heartbeat.
 - Firmware updates use a separate framing with a CRC-32 instead of the XOR checksum:
   `55 55 CMD chunkHi chunkLo LEN DATA… CRC32 AA AA`, 200-byte chunks.
@@ -100,17 +161,22 @@ main reference.
 
 ## Code
 
-| File                 | Purpose                                                     |
-|----------------------|-------------------------------------------------------------|
-| `Niimbot.kt`         | packet encoding and parsing, row encoding                   |
-| `B21Printer.kt`      | BLE connection, print sequence, firmware update             |
-| `ImageProcessor.kt`  | scaling, tone curve, dot-gain, dithering, frame/window composition |
-| `TextLabel.kt`       | sign rendering                                              |
-| `Labels.kt`          | label presets                                               |
-| `MainActivity.kt`    | main screen                                                 |
-| `CropActivity.kt`, `CropView.kt` | crop screen                                     |
-| `BoothActivity.kt`   | photo booth                                                 |
+| File                             | Purpose                                                        |
+|----------------------------------|----------------------------------------------------------------|
+| `Niimbot.kt`                     | packet encoding and parsing, row encoding                      |
+| `B21Printer.kt`                  | BLE connection, print sequence, firmware update                |
+| `ImageProcessor.kt`              | scaling, tone curve, dot gain, raster looks, frame and window composition |
+| `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`)               |
+| `TextLabel.kt`                   | sign rendering                                                 |
+| `Labels.kt`                      | label presets                                                  |
+| `MainActivity.kt`                | main screen                                                    |
+| `CropActivity.kt`, `CropView.kt` | crop screen                                                    |
+| `BoothActivity.kt`               | photo booth                                                    |
+
+[history.md](history.md) records how the image pipeline got where it is, [backlog.md](backlog.md)
+lists what is still open.
 
 ## Disclaimer
 
-Not affiliated with NIIMBOT. Use at your own risk, especially the firmware flasher.
+Not affiliated with NIIMBOT, Apple or Commodore; the look names only describe the style. Use at your
+own risk, especially the firmware flasher.

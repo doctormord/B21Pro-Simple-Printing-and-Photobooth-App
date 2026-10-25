@@ -14,7 +14,8 @@ object ImageProcessor {
     enum class Fit { CONTAIN, COVER, STRETCH }
 
     // PHOTO: Atkinson dithering, DOTS: halftone screen, TEXT: hard threshold
-    enum class Raster { PHOTO, DOTS, TEXT }
+    // Order = order in the raster picker (R.array.raster)
+    enum class Raster { PHOTO, DOTS, LINES, SCANLINES, MAC, AMIGA, FAX, TEXT }
 
     class Options(
         val fit: Fit,
@@ -27,14 +28,20 @@ object ImageProcessor {
         val caption: String,
         val offsetXMm: Double = 0.0,
         val offsetYMm: Double = 0.0,
+        // The photo fades to white towards the edge of its area (circle on round labels)
+        val softEdge: Boolean = false,
+        // Print further past the window / circle rim, for rolls that sit a bit off
+        val overscan: Boolean = false,
     )
 
     // bits/width/height: what is printed (at most the print head width)
     // preview: the whole label as it looks after printing
     class Result(val bits: ByteArray, val width: Int, val height: Int, val preview: Bitmap)
 
-    // Bleed into the pre-printed frame so no white gap remains
+    // Bleed into the pre-printed frame / past the circle so no white gap remains
     private const val BLEED_MM = 0.6
+    // Overscan: a roll can sit up to about ±2 mm off
+    private const val OVERSCAN_MM = 2.0
 
     fun mmToPx(mm: Double) = Math.round(mm / 25.4 * Niimbot.DPI).toInt()
 
@@ -74,20 +81,26 @@ object ImageProcessor {
         val canvas = Canvas(canvasBmp)
         canvas.drawColor(Color.WHITE)
 
+        val bleed = if (o.overscan) OVERSCAN_MM else BLEED_MM
+        fun windowRect(b: Double) = Rect(
+            mmToPx(window!!.x - b + o.offsetXMm) - headLeft,
+            mmToPx(window.y - b + o.offsetYMm),
+            mmToPx(window.x + window.w + b + o.offsetXMm) - headLeft,
+            mmToPx(window.y + window.h + b + o.offsetYMm),
+        ).apply { intersect(0, 0, w, h) }
         val area = when {
-            window != null -> Rect(
-                mmToPx(window.x - BLEED_MM + o.offsetXMm) - headLeft,
-                mmToPx(window.y - BLEED_MM + o.offsetYMm),
-                mmToPx(window.x + window.w + BLEED_MM + o.offsetXMm) - headLeft,
-                mmToPx(window.y + window.h + BLEED_MM + o.offsetYMm),
-            ).apply { intersect(0, 0, w, h) }
+            window != null -> windowRect(bleed)
             o.instant -> instantPhotoRect(w, h)
             else -> Rect(0, 0, w, h)
         }
+        // The visible edge of the photo: the soft edge fades out here, not at the bleed
+        val edge = if (window != null) windowRect(0.0) else area
+        val radius = minOf(area.width(), area.height()) / 2f
         if (round) {
-            // Round label: everything outside the circle stays white
+            // Round label: print past the rim (like bleed in normal print) so no white gap shows
+            // when the label is slightly off; the rest stays white
             canvas.clipPath(Path().apply {
-                addCircle(area.exactCenterX(), area.exactCenterY(), minOf(area.width(), area.height()) / 2f, Path.Direction.CW)
+                addCircle(area.exactCenterX(), area.exactCenterY(), radius + mmToPx(bleed), Path.Direction.CW)
             })
         }
         if (src != null) {
@@ -99,6 +112,7 @@ object ImageProcessor {
 
         val px = IntArray(w * h)
         canvasBmp.getPixels(px, 0, w, 0, 0, w, h)
+        if (src != null && o.softEdge) softEdge(px, w, h, area, edge, round)
         val bits = toBits(px, w, h, area, o)
         canvasBmp.recycle()
 
@@ -114,6 +128,24 @@ object ImageProcessor {
         }
 
         return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor))
+    }
+
+    // Soft frame: fade the photo to white over the outer ~16 % of its area. Rectangles fade per side
+    // (the product gives soft rounded corners), circles radially; beyond the edge it is white.
+    private fun softEdge(px: IntArray, w: Int, h: Int, area: Rect, edge: Rect, round: Boolean) {
+        val fade = 0.16f * minOf(edge.width(), edge.height())
+        val cx = edge.exactCenterX(); val cy = edge.exactCenterY()
+        val radius = minOf(edge.width(), edge.height()) / 2f
+        fun ramp(d: Float): Float { val t = (d / fade).coerceIn(0f, 1f); return t * t * (3 - 2 * t) }
+        for (y in maxOf(0, area.top) until minOf(h, area.bottom)) for (x in maxOf(0, area.left) until minOf(w, area.right)) {
+            val fx = x + 0.5f; val fy = y + 0.5f
+            val a = if (round) ramp(radius - Math.hypot((fx - cx).toDouble(), (fy - cy).toDouble()).toFloat())
+                else ramp(minOf(fx - edge.left, edge.right - fx)) * ramp(minOf(fy - edge.top, edge.bottom - fy))
+            if (a >= 1f) continue
+            val c = px[y * w + x]
+            fun mix(v: Int) = (v * a + 255 * (1 - a)).toInt()
+            px[y * w + x] = Color.rgb(mix(Color.red(c)), mix(Color.green(c)), mix(Color.blue(c)))
+        }
     }
 
     private fun composePreview(
@@ -335,10 +367,6 @@ object ImageProcessor {
     // spread; black and white stay put, mid-tones lose ink. 0 = off, ~0.55 = strong thermal.
     private const val DOT_GAIN = 0.55
 
-    // Highlight headroom: the brightest tone maps here instead of pure white, so light areas
-    // keep a faint dot texture instead of clipping to blank paper. Lower = more highlight detail.
-    private const val WHITE = 240f
-
     // Prepare tones for thermal printing: auto contrast in the photo area, brightness/contrast,
     // gentle sharpening, and dot-gain compensation so the print matches the preview.
     private fun prepare(gray: FloatArray, w: Int, h: Int, area: Rect, o: Options) {
@@ -353,12 +381,15 @@ object ImageProcessor {
             return 255
         }
         var lo = pct(0.01).toFloat()
-        var hi = pct(0.99).toFloat()
+        // Only the brightest 0.1 % may clip, so light grey stays distinguishable from paper white
+        var hi = pct(0.999).toFloat()
         // Do not stretch flat areas (e.g. no photo yet) to black
         if (hi - lo < 32f) { lo = 0f; hi = 255f }
         val contrast = 1f + o.contrast / 50f * 0.8f
         val bright = o.brightness * 1.5f
         val photo = o.raster != Raster.TEXT
+        // Dot gain only matters for patterns of single dots; coarse cells and thick lines print true
+        val fine = o.raster == Raster.PHOTO || o.raster == Raster.DOTS || o.raster == Raster.SCANLINES
 
         // Unsharp mask (3×3); kept light so scaled high-contrast edges do not bloom at full heat
         val src = gray.copyOf()
@@ -369,10 +400,9 @@ object ImageProcessor {
                 val blur = (src[i - 1] + src[i + 1] + src[i - w] + src[i + w] + 4 * v) / 8f
                 v += 0.4f * (v - blur)
             }
-            val top = if (photo) WHITE else 255f
-            v = (v - lo) / (hi - lo) * top
+            v = (v - lo) / (hi - lo) * 255f
             v = (v - 128f) * contrast + 128f + bright
-            if (photo) {
+            if (fine) {
                 // Dot-gain compensation in ink-coverage space (d = 1 - v, 1 = full black).
                 // Taper it out in the highlights (small d) so light tones keep their dots.
                 val d = (1f - v / 255f).coerceIn(0f, 1f)
@@ -400,24 +430,105 @@ object ImageProcessor {
                     bits[i] = if (gray[i] / 255.0 < t) 1 else 0
                 }
             }
-            Raster.PHOTO -> {
-                // Atkinson spreads only 6/8 of the error: cleaner highlights, less mud
-                for (y in 0 until h) for (x in 0 until w) {
-                    val i = y * w + x
-                    val v = gray[i]
-                    val black = v < 128
-                    bits[i] = if (black) 1 else 0
-                    val err = (v - if (black) 0f else 255f) / 8f
-                    fun add(xx: Int, yy: Int) {
-                        if (xx in 0 until w && yy < h) gray[yy * w + xx] += err
+            Raster.PHOTO -> atkinson(gray, w, h, bits)
+            Raster.LINES -> {
+                // Engraving look: horizontal lines whose thickness carries the tone (0.6 mm pitch)
+                val pitch = 7
+                for (y in 0 until h) {
+                    val c = (y / pitch) * pitch + pitch / 2f
+                    val dy = Math.abs(y + 0.5f - c)
+                    val sy = c.toInt().coerceAtMost(h - 1)
+                    for (x in 0 until w) {
+                        val t = (1f - gray[sy * w + x] / 255f).coerceIn(0f, 1f) * pitch
+                        bits[y * w + x] = if (dy < t / 2f) 1 else 0
                     }
-                    add(x + 1, y); add(x + 2, y)
-                    add(x - 1, y + 1); add(x, y + 1); add(x + 1, y + 1)
-                    add(x, y + 2)
                 }
             }
+            Raster.SCANLINES -> {
+                // CRT look: the picture sits in bands of 4 rows with a 2-row white gap. The bands are
+                // darkened so the overall tone holds and dithered as if they were contiguous, so no
+                // error is lost in the gaps.
+                val pitch = 6; val lit = 4
+                val rows = (0 until h).filter { it % pitch < lit }
+                val band = FloatArray(rows.size * w)
+                for ((j, y) in rows.withIndex()) for (x in 0 until w) {
+                    band[j * w + x] = (255f - (255f - gray[y * w + x]) * pitch / lit).coerceAtLeast(0f)
+                }
+                val bb = ByteArray(band.size)
+                atkinson(band, w, rows.size, bb)
+                for ((j, y) in rows.withIndex()) System.arraycopy(bb, j * w, bits, y * w, w)
+            }
+            // MacPaint: Atkinson at 72 dpi, so each screen pixel is a 4×4 block
+            Raster.MAC -> blocks(gray, w, h, bits, 4, 4) { g, bw, bh, b -> atkinson(g, bw, bh, b) }
+            // Amiga / early PC: 4×4 Bayer ordered dither on 2×2 blocks, the typical cross-hatch
+            Raster.AMIGA -> blocks(gray, w, h, bits, 2, 2) { g, bw, bh, b ->
+                for (y in 0 until bh) for (x in 0 until bw) {
+                    val t = (BAYER4[(y and 3) * 4 + (x and 3)] + 0.5f) / 16f * 255f
+                    b[y * bw + x] = if (g[y * bw + x] < t) 1 else 0
+                }
+            }
+            // Fax "standard" resolution (204 × 98 dpi): coarse rows, Floyd-Steinberg
+            Raster.FAX -> blocks(gray, w, h, bits, 2, 3) { g, bw, bh, b -> floyd(g, bw, bh, b) }
         }
         return bits
+    }
+
+    private val BAYER4 = intArrayOf(0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5)
+
+    // Atkinson spreads only 6/8 of the error: cleaner mid-tones, less mud. But the lost error means
+    // a flat tone lighter than ~223 never gets a dot, so highlights burn out. Light tones therefore
+    // pass on the full error (6/6); pure white still stays blank.
+    private fun atkinson(gray: FloatArray, w: Int, h: Int, bits: ByteArray) {
+        val tone = gray.copyOf()
+        for (y in 0 until h) for (x in 0 until w) {
+            val i = y * w + x
+            val v = gray[i]
+            val black = v < 128
+            bits[i] = if (black) 1 else 0
+            val full = ((tone[i] - 200f) / 35f).coerceIn(0f, 1f)
+            val err = (v - if (black) 0f else 255f) / (8f - 2f * full)
+            fun add(xx: Int, yy: Int) {
+                if (xx in 0 until w && yy < h) gray[yy * w + xx] += err
+            }
+            add(x + 1, y); add(x + 2, y)
+            add(x - 1, y + 1); add(x, y + 1); add(x + 1, y + 1)
+            add(x, y + 2)
+        }
+    }
+
+    private fun floyd(gray: FloatArray, w: Int, h: Int, bits: ByteArray) {
+        for (y in 0 until h) for (x in 0 until w) {
+            val i = y * w + x
+            val v = gray[i]
+            val black = v < 128
+            bits[i] = if (black) 1 else 0
+            val err = v - if (black) 0f else 255f
+            if (x + 1 < w) gray[i + 1] += err * 7 / 16
+            if (y + 1 < h) {
+                if (x > 0) gray[i + w - 1] += err * 3 / 16
+                gray[i + w] += err * 5 / 16
+                if (x + 1 < w) gray[i + w + 1] += err * 1 / 16
+            }
+        }
+    }
+
+    // Dither at a coarser resolution (bx × by print pixels per cell) and scale the result back up
+    private fun blocks(
+        gray: FloatArray, w: Int, h: Int, bits: ByteArray, bx: Int, by: Int,
+        dither: (FloatArray, Int, Int, ByteArray) -> Unit,
+    ) {
+        val cw = (w + bx - 1) / bx
+        val ch = (h + by - 1) / by
+        val cells = FloatArray(cw * ch)
+        val count = IntArray(cw * ch)
+        for (y in 0 until h) for (x in 0 until w) {
+            val c = (y / by) * cw + x / bx
+            cells[c] += gray[y * w + x]; count[c]++
+        }
+        for (c in cells.indices) cells[c] /= count[c]
+        val cb = ByteArray(cw * ch)
+        dither(cells, cw, ch, cb)
+        for (y in 0 until h) for (x in 0 until w) bits[y * w + x] = cb[(y / by) * cw + x / bx]
     }
 
     // Caption, sharp (no dithering), in the bottom border

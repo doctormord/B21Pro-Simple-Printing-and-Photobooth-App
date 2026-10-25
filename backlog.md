@@ -18,7 +18,7 @@ Open items, roughly in order of priority.
   correction of their own.
 - TV scanlines cannot go darker than about two thirds coverage. Check whether a 5 + 1 band (one
   white row) still shows visible scanlines after dot spread.
-- The soft-edge fade width (16 % of the shorter side) is a first guess.
+- The soft-edge fade width (12 % of the shorter side) is set from screen previews only.
 
 ## Ideas
 

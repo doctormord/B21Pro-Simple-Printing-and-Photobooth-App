@@ -46,6 +46,7 @@
     <string name="raster">Raster</string>
     <string name="raster_lines">Linienraster (Kupferstich)</string>
     <string name="raster_scanlines">TV-Scanlines</string>
+    <string name="raster_scanlines_wide">TV-Scanlines, breit</string>
     <string name="raster_mac">Macintosh (72 dpi)</string>
     <string name="raster_amiga">Amiga (Bayer)</string>
     <string name="raster_fax">Fax</string>

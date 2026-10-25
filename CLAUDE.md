@@ -28,11 +28,11 @@ There are no unit tests; changes are checked in the emulator and on paper.
 
 1. Scale the photo into the photo area at print resolution (300 dpi, 591-dot head):
    area-average downscale with a small pre-blur.
-2. Soft edge, if enabled.
-3. `prepare`: auto levels (1 % black point, 99.9 % white point), sharpening, brightness/contrast,
-   dot-gain compensation (only for looks made of single dots).
-4. `toBits`: the raster look, at print resolution. Nothing is scaled after this point.
-5. `composePreview`: preview bitmap with simulated dot spread; only this is scaled on screen.
+2. `prepare`: auto levels (1 % black point, 99.9 % white point), sharpening, brightness/contrast,
+   dot-gain compensation (only for looks made of single dots), invert, then the soft-edge fade.
+   The fade must come after the levels step, or the added white darkens the photo.
+3. `toBits`: the raster look, at print resolution. Nothing is scaled after this point.
+4. `composePreview`: preview bitmap with simulated dot spread; only this is scaled on screen.
 
 Things that look like bugs but are deliberate:
 - Atkinson passes on the full error for light tones (`atkinson`). Plain Atkinson cannot put a dot

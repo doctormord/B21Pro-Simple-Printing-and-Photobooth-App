@@ -4,6 +4,15 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.2 (2026-10-25)
+
+- Turning on the soft edge made the whole photo darker. The fade was blended into the image before
+  the automatic levels step, so the added white pushed the measured white point to 255 and the photo
+  was no longer brightened. The fade is now applied after the tone curve.
+- Soft edge width reduced from 16 % to 12 % of the shorter side.
+- Second scanline look with a 4-row gap. The 2-row gap of the first one prints as about one row
+  after dot spread, which is hard to see on a 40 mm label.
+
 ## 1.3.1 (2026-10-25)
 
 - Overscan only applies to round labels. On Memory Film the frame is thermal paper as well, so

@@ -12,6 +12,7 @@
         <item>@string/raster_dots</item>
         <item>@string/raster_lines</item>
         <item>@string/raster_scanlines</item>
+        <item>@string/raster_scanlines_wide</item>
         <item>@string/raster_mac</item>
         <item>@string/raster_amiga</item>
         <item>@string/raster_fax</item>

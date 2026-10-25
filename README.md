@@ -13,7 +13,7 @@ for tablets.
 
 **Photos**
 - Camera, gallery, or *Share* from any other app; crop to the label shape or freely
-- Eight raster looks (see below), brightness, contrast, invert
+- Nine raster looks (see below), brightness, contrast, invert
 - Soft edge: the photo fades to white towards its border, round on circle labels
 - Instant frame with an optional caption, printed by the app on plain labels
 - NB835 *Memory Film* labels with a pre-printed frame: only the window is printed, with a
@@ -57,7 +57,7 @@ moiré there that does not appear on paper.
 | Photo          | Atkinson error diffusion. Light tones pass on the full error, so highlights keep a few dots instead of burning out, while paper white stays blank. |
 | Halftone dots  | Round dots on a 45° screen, about 0.5 mm pitch                               |
 | Line screen    | Horizontal lines, 0.6 mm apart; the line thickness carries the tone (engraving style) |
-| TV scanlines   | The picture sits in bands of four dot rows with a two-row white gap          |
+| TV scanlines   | The picture sits in bands of dot rows with a white gap: 4 + 2 rows, or 6 + 4 rows for *wide*. Dot spread closes about one row of the gap, so the wide version is the one that shows on small labels. |
 | Macintosh      | Atkinson dithering at 72 dpi, one screen pixel = 4 × 4 printer dots          |
 | Amiga          | 4 × 4 Bayer ordered dither on 2 × 2 dot cells, the familiar cross-hatch      |
 | Fax            | 150 × 100 dpi cells, close to fax standard resolution, with Floyd–Steinberg diffusion |
@@ -84,7 +84,8 @@ corrected.
   full range. Only the brightest 0.1 % may clip to white, so light grey stays distinguishable from
   paper white.
 - **Invert**: swap black and white.
-- **Soft edge**: fade to white over the outer sixth of the photo area.
+- **Soft edge**: fade to white over the outer eighth of the photo area. The fade is applied after
+  the tone curve, so it does not change the brightness of the rest of the photo.
 - **Overscan** (round labels): print 2 mm instead of 0.6 mm past the rim. Memory Film has no
   overscan: its frame is thermal paper too, and print outside the window would grey it.
 - **Print density**: heat level sent to the printer. 1–2 suits photos on original rolls.

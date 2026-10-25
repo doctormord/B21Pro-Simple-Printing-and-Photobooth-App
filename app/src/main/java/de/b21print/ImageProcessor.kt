@@ -181,6 +181,19 @@ object ImageProcessor {
             val s = if (fit == Fit.CONTAIN) minOf(sx, sy) else maxOf(sx, sy)
             sx = s; sy = s
         }
+        // No rotation (the usual case – crop bakes rotation in): area-average the downscale.
+        // Bilinear undersamples and leaves moiré on slanted/fine structures; area averaging is clean.
+        if (rotation % 180 == 0 && sx < 0.98f && sy < 0.98f) {
+            val dw = (sw * sx).toInt().coerceAtLeast(1)
+            val dh = (sh * sy).toInt().coerceAtLeast(1)
+            val scaled = areaScale(src, dw, dh)
+            canvas.save()
+            canvas.clipRect(area)
+            canvas.drawBitmap(scaled, area.exactCenterX() - dw / 2f, area.exactCenterY() - dh / 2f, null)
+            canvas.restore()
+            if (scaled != src) scaled.recycle()
+            return
+        }
         // Halve large photos step by step; one big downscale step causes moiré
         var img = src
         while (minOf(sx, sy) * 2 < 1f && img.width > 64 && img.height > 64) {
@@ -197,6 +210,63 @@ object ImageProcessor {
         canvas.clipRect(area)
         canvas.drawBitmap(img, m, Paint(Paint.FILTER_BITMAP_FLAG))
         canvas.restore()
+    }
+
+    // Proper area-averaging downscale (separable): each output pixel is the coverage-weighted
+    // mean of the source pixels it spans. Removes the aliasing that bilinear leaves on fine
+    // diagonal/ring structures. Only for downscaling; returns src unchanged if it would upscale.
+    private fun areaScale(src: Bitmap, dw: Int, dh: Int): Bitmap {
+        val sw = src.width
+        val sh = src.height
+        if (dw >= sw || dh >= sh) return src
+        val sp = IntArray(sw * sh)
+        src.getPixels(sp, 0, sw, 0, 0, sw, sh)
+        val tmp = IntArray(dw * sh)
+        val fx = sw.toDouble() / dw
+        for (y in 0 until sh) {
+            val row = y * sw
+            for (x in 0 until dw) {
+                val xa = x * fx; val xb = (x + 1) * fx
+                var a = 0.0; var r = 0.0; var g = 0.0; var b = 0.0; var ws = 0.0
+                var xx = xa.toInt()
+                val xe = Math.ceil(xb).toInt().coerceAtMost(sw)
+                while (xx < xe) {
+                    val wgt = minOf(xb, (xx + 1).toDouble()) - maxOf(xa, xx.toDouble())
+                    if (wgt > 0) {
+                        val c = sp[row + xx]
+                        a += ((c ushr 24) and 0xff) * wgt; r += ((c ushr 16) and 0xff) * wgt
+                        g += ((c ushr 8) and 0xff) * wgt; b += (c and 0xff) * wgt; ws += wgt
+                    }
+                    xx++
+                }
+                val inv = if (ws > 0) 1.0 / ws else 0.0
+                tmp[y * dw + x] = ((a * inv).toInt() shl 24) or ((r * inv).toInt() shl 16) or
+                    ((g * inv).toInt() shl 8) or (b * inv).toInt()
+            }
+        }
+        val out = IntArray(dw * dh)
+        val fy = sh.toDouble() / dh
+        for (y in 0 until dh) {
+            val ya = y * fy; val yb = (y + 1) * fy
+            val j0 = ya.toInt(); val je = Math.ceil(yb).toInt().coerceAtMost(sh)
+            for (x in 0 until dw) {
+                var a = 0.0; var r = 0.0; var g = 0.0; var b = 0.0; var ws = 0.0
+                var yy = j0
+                while (yy < je) {
+                    val wgt = minOf(yb, (yy + 1).toDouble()) - maxOf(ya, yy.toDouble())
+                    if (wgt > 0) {
+                        val c = tmp[yy * dw + x]
+                        a += ((c ushr 24) and 0xff) * wgt; r += ((c ushr 16) and 0xff) * wgt
+                        g += ((c ushr 8) and 0xff) * wgt; b += (c and 0xff) * wgt; ws += wgt
+                    }
+                    yy++
+                }
+                val inv = if (ws > 0) 1.0 / ws else 0.0
+                out[y * dw + x] = ((a * inv).toInt() shl 24) or ((r * inv).toInt() shl 16) or
+                    ((g * inv).toInt() shl 8) or (b * inv).toInt()
+            }
+        }
+        return Bitmap.createBitmap(out, dw, dh, Bitmap.Config.ARGB_8888)
     }
 
     private fun luminance(px: IntArray) = FloatArray(px.size) { i ->

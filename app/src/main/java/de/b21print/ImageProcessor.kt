@@ -181,17 +181,17 @@ object ImageProcessor {
             val s = if (fit == Fit.CONTAIN) minOf(sx, sy) else maxOf(sx, sy)
             sx = s; sy = s
         }
-        // No rotation (the usual case – crop bakes rotation in): area-average the downscale.
-        // Bilinear undersamples and leaves moiré on slanted/fine structures; area averaging is clean.
+        // No rotation (the usual case – crop bakes rotation in): anti-aliased downscale.
+        // Bilinear undersamples and leaves moiré on slanted/fine structures.
         if (rotation % 180 == 0 && sx < 0.98f && sy < 0.98f) {
             val dw = (sw * sx).toInt().coerceAtLeast(1)
             val dh = (sh * sy).toInt().coerceAtLeast(1)
-            val scaled = areaScale(src, dw, dh)
+            val scaled = downscaleAA(src, dw, dh)
             canvas.save()
             canvas.clipRect(area)
             canvas.drawBitmap(scaled, area.exactCenterX() - dw / 2f, area.exactCenterY() - dh / 2f, null)
             canvas.restore()
-            if (scaled != src) scaled.recycle()
+            if (scaled !== src) scaled.recycle()
             return
         }
         // Halve large photos step by step; one big downscale step causes moiré
@@ -212,9 +212,63 @@ object ImageProcessor {
         canvas.restore()
     }
 
+    // Anti-aliased downscale: cheaply halve (area) down to within 2x of the target, then a small
+    // Gaussian pre-blur removes the residual aliasing band a box filter leaves (its stopband is
+    // imperfect), then a final area average. The blur only removes detail finer than the target can
+    // show, so it costs no real sharpness but roughly quarters the leftover moiré on fine structures.
+    private fun downscaleAA(src: Bitmap, dw: Int, dh: Int): Bitmap {
+        var cur = src
+        while (cur.width >= 2 * dw && cur.height >= 2 * dh) {
+            val half = areaScale(cur, cur.width / 2, cur.height / 2)
+            if (cur !== src) cur.recycle()
+            cur = half
+        }
+        val sigma = (0.6f * cur.width / dw).coerceIn(0.5f, 1.2f)
+        val blurred = gaussBlur(cur, sigma)
+        if (cur !== src) cur.recycle()
+        val out = areaScale(blurred, dw, dh)
+        if (blurred !== src && blurred !== out) blurred.recycle()
+        return out
+    }
+
+    // Separable Gaussian blur on ARGB. Runs on the small (<=2x target) intermediate, so it is cheap.
+    private fun gaussBlur(src: Bitmap, sigma: Float): Bitmap {
+        val w = src.width; val h = src.height
+        val rad = Math.max(1, (sigma * 3).toInt())
+        val k = FloatArray(2 * rad + 1); var ks = 0f
+        for (i in -rad..rad) { val v = Math.exp(-(i * i) / (2.0 * sigma * sigma)).toFloat(); k[i + rad] = v; ks += v }
+        for (i in k.indices) k[i] /= ks
+        val sp = IntArray(w * h); src.getPixels(sp, 0, w, 0, 0, w, h)
+        val tmp = IntArray(w * h)
+        for (y in 0 until h) {
+            val row = y * w
+            for (x in 0 until w) {
+                var a = 0f; var r = 0f; var g = 0f; var b = 0f
+                for (j in -rad..rad) {
+                    val c = sp[row + (x + j).coerceIn(0, w - 1)]; val wt = k[j + rad]
+                    a += ((c ushr 24) and 0xff) * wt; r += ((c ushr 16) and 0xff) * wt
+                    g += ((c ushr 8) and 0xff) * wt; b += (c and 0xff) * wt
+                }
+                tmp[row + x] = (a.toInt() shl 24) or (r.toInt() shl 16) or (g.toInt() shl 8) or b.toInt()
+            }
+        }
+        val out = IntArray(w * h)
+        for (x in 0 until w) {
+            for (y in 0 until h) {
+                var a = 0f; var r = 0f; var g = 0f; var b = 0f
+                for (j in -rad..rad) {
+                    val c = tmp[(y + j).coerceIn(0, h - 1) * w + x]; val wt = k[j + rad]
+                    a += ((c ushr 24) and 0xff) * wt; r += ((c ushr 16) and 0xff) * wt
+                    g += ((c ushr 8) and 0xff) * wt; b += (c and 0xff) * wt
+                }
+                out[y * w + x] = (a.toInt() shl 24) or (r.toInt() shl 16) or (g.toInt() shl 8) or b.toInt()
+            }
+        }
+        return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
+    }
+
     // Proper area-averaging downscale (separable): each output pixel is the coverage-weighted
-    // mean of the source pixels it spans. Removes the aliasing that bilinear leaves on fine
-    // diagonal/ring structures. Only for downscaling; returns src unchanged if it would upscale.
+    // mean of the source pixels it spans. Only for downscaling; returns src unchanged otherwise.
     private fun areaScale(src: Bitmap, dw: Int, dh: Int): Bitmap {
         val sw = src.width
         val sh = src.height

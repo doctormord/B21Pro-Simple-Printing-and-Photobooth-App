@@ -7,4 +7,6 @@
     <color name="surface">#1A1110</color>
     <color name="stage">#2A2120</color>
     <color name="ok">#6FD99A</color>
+    <color name="booth_container">#5A4200</color>
+    <color name="on_booth_container">#FFDFA0</color>
 </resources>

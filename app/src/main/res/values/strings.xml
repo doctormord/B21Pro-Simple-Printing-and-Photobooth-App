@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name" translatable="false">B21 Print</string>
     <string name="mode_photo">Photo</string>
+    <string name="mode_booth">Booth</string>
     <string name="mode_sign">Sign</string>
     <string name="connect">Connect</string>
     <string name="connecting">Connecting …</string>
@@ -10,7 +11,6 @@
     <string name="crop">Crop</string>
     <string name="camera">Camera</string>
     <string name="gallery">Gallery</string>
-    <string name="booth_button">Photo booth: selfie &amp; instant print</string>
     <string name="sign_hint">Text, e.g. Crayons</string>
     <string name="dictate">Dictate</string>
     <string name="font_clean">Clean</string>
@@ -57,7 +57,7 @@
     <string name="invert">Invert</string>
     <string name="speed">Speed</string>
     <string name="speed_fine">Fine</string>
-    <string name="speed_fast">Fast</string>
+    <string name="speed_fast">Coarse</string>
     <string name="density">Print density</string>
     <string name="paper_type">Paper type</string>
     <string name="copies">Copies</string>

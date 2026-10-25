@@ -27,6 +27,7 @@ Open items, roughly in order of priority.
 
 ## Ideas
 
+- Refresh the screenshots in `docs/`; they predate the booth button in the mode bar.
 - 1:1 preview zoom (tap the preview) so line screen and scanlines can be judged without moiré from
   the on-screen scaling.
 - Remember the invert switch like the other image settings.

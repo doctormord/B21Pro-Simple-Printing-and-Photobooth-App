@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="mode_photo">Foto</string>
+    <string name="mode_booth">Fotobox</string>
     <string name="mode_sign">Schild</string>
     <string name="connect">Verbinden</string>
     <string name="connecting">Verbinde …</string>
@@ -9,7 +10,6 @@
     <string name="crop">Ausschnitt</string>
     <string name="camera">Kamera</string>
     <string name="gallery">Galerie</string>
-    <string name="booth_button">Fotobox – Selfie &amp; sofort drucken</string>
     <string name="sign_hint">Text, z. B. Buntstifte</string>
     <string name="dictate">Einsprechen</string>
     <string name="font_clean">Klar</string>
@@ -56,7 +56,7 @@
     <string name="invert">Invertieren</string>
     <string name="speed">Geschwindigkeit</string>
     <string name="speed_fine">Fein</string>
-    <string name="speed_fast">Schnell</string>
+    <string name="speed_fast">Grob</string>
     <string name="density">Druckdichte</string>
     <string name="paper_type">Papierart</string>
     <string name="copies">Anzahl</string>

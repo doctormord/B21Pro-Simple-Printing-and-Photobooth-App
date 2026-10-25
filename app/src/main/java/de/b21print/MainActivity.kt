@@ -147,14 +147,19 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_GALLERY)
         }
         findViewById<MaterialButton>(R.id.btnCrop).setOnClickListener { openCrop() }
-        findViewById<MaterialButton>(R.id.btnBooth).setOnClickListener { openBooth() }
         watchKeyboard()
         btnPrint.setOnClickListener { print() }
 
         // Photo / sign
         val toggleApp = findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode)
-        toggleApp.addOnButtonCheckedListener { _, id, checked ->
+        toggleApp.addOnButtonCheckedListener { group, id, checked ->
             if (!checked) return@addOnButtonCheckedListener
+            if (id == R.id.modeAppBooth) {
+                // The booth is not a mode: keep the current one selected and open it
+                group.check(if (textMode) R.id.modeAppText else R.id.modeAppPhoto)
+                openBooth()
+                return@addOnButtonCheckedListener
+            }
             textMode = id == R.id.modeAppText
             prefs.edit().putBoolean("textMode", textMode).apply()
             applyModeVisibility()
@@ -277,6 +282,8 @@ class MainActivity : AppCompatActivity() {
             sliderContrast.value = 0f
         }
 
+        findViewById<TextView>(R.id.txtVersion).text =
+            runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
         findViewById<TextView>(R.id.title).setOnLongClickListener { showDebugConsole(); true }
         buildLabelList()
         selectLabel(Labels.ALL.firstOrNull { it.name == prefs.getString("label", null) } ?: Labels.NB835)
@@ -1085,7 +1092,7 @@ class MainActivity : AppCompatActivity() {
         }
         scope.launch {
             val density = sliderDensity.value.toInt()
-            val speed = if (prefs.getInt("speed", 1) == 0) "FAST" else "FINE"
+            val speed = if (prefs.getInt("speed", 1) == 0) "COARSE" else "FINE"
             // The calibration chart is made at print resolution, so it is drawn 1:1
             val chart = withContext(Dispatchers.Default) {
                 if (calibrate) TestChart.calibration(w, h, "CAL D$density $speed") else TestChart.create(w, h, l.round)

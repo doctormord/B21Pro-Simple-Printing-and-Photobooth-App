@@ -7,5 +7,8 @@
     <color name="surface">#FFF8F6</color>
     <color name="stage">#EFE7E5</color>
     <color name="ok">#2E9E5B</color>
+    <!-- Warm amber for the photo booth, next to the coral brand colour -->
+    <color name="booth_container">#FFE2A3</color>
+    <color name="on_booth_container">#3B2A00</color>
     <color name="launcher_bg">#E8473C</color>
 </resources>

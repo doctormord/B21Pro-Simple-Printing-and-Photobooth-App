@@ -27,7 +27,7 @@ for tablets.
 - Voice input
 - History of the last 50 printed signs, and saved templates
 
-**Photo booth**
+**Photo booth** (the amber *Booth* button between *Photo* and *Sign*)
 - Full-screen front camera with the printable area marked
 - Countdown (off/3/5/10 s) and screen flash
 - Review before printing: delete or print, then print again or take the next photo
@@ -38,7 +38,7 @@ for tablets.
 - Presets for common B21 sizes (rectangular, square, round, instant style) and a custom size
   (print width up to 50 mm, length up to 200 mm)
 - Gap, black mark, continuous and transparent paper; multiple copies
-- Print density 1–5 and two print speeds (fine/fast), both set on the printer
+- Print density 1–5 and two print modes, fine and coarse (the printer's slow and fast speed)
 
 **Layout**
 - Phone, tablet portrait and a two-column tablet landscape layout
@@ -98,9 +98,9 @@ their nominal tone and are not corrected.
 - **Overscan** (round labels): print 2 mm instead of 0.6 mm past the rim. Memory Film has no
   overscan: its frame is thermal paper too, and print outside the window would grey it.
 - **Print density**: heat level sent to the printer. 1–2 suits photos on original rolls.
-- **Speed**: *Fine* for photos. At *Fast* single dots print much larger, and dense alternating
-  dot patterns come out lighter than lighter tones; the tone correction works around that, but
-  photos keep a coarser, wormy texture. Text prints the same at both speeds.
+- **Speed**: *Fine* for photos. *Coarse* is the printer's fast mode: single dots print much larger,
+  and dense alternating dot patterns come out lighter than lighter tones; the tone correction works
+  around that, but photos keep a coarse, wormy texture. Text prints the same in both modes.
 - **Paper type**: how the printer finds the next label (gap, black mark, continuous, transparent).
 
 ![Soft edge](docs/soft-edge.png)

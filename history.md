@@ -4,6 +4,13 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.9 (2026-10-25)
+
+- The photo booth button moved from below the preview into the mode bar, between *Photo* and *Sign*,
+  in amber. It opens the booth and leaves the current mode selected. Saves a full row on phones.
+- *Fast* is now called *Coarse*, which describes what it does to photos.
+- The version number is shown next to the title.
+
 ## 1.3.8 (2026-10-25)
 
 Tone sweep at density 3, brightness and contrast at 0: gamma 1.0 looked best, 1.3–2.0 increasingly

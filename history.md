@@ -4,6 +4,23 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.3.3 (2026-10-25)
+
+### Light tones printed grey
+Prints from 1.3.x looked muddier than 1.0.x: faces and white fabric came out grey. Removing the
+white-point headroom was not the cause; it made mid-tones lighter (tone 140: 31.8 % → 27.5 % ink).
+The difference was in the light tones. Plain Atkinson left everything above ~210 blank, so skin
+and highlights printed as bare paper. The hybrid dither puts dots there, but the dot-gain
+compensation was still tapered out in the highlights (the taper existed only because plain
+Atkinson had no dots there to correct). Modelled printed coverage at tone 235: ideal 7.8 %, old 0 %,
+1.3.2 11 %. With the compensation applied across the whole range it is 6.1 %.
+
+### Debug console
+Rebuilt: test chart, diagnostics and firmware flash at the top, command field with an inline send
+button and preset chips, and a fixed log area with copy and clear buttons. App log lines (e.g.
+diagnostics) are mirrored into it while it is open. Without a printer the same console opens with
+the printer functions disabled.
+
 ## 1.3.2 (2026-10-25)
 
 - Turning on the soft edge made the whole photo darker. The fade was blended into the image before

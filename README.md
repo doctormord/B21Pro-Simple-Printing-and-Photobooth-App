@@ -168,6 +168,7 @@ the BLE characteristic and shows every reply. It also offers:
   checkerboard resolution, Siemens star, rings and microtext. Works without a printer.
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
   the log at the bottom of the main screen.
+- **Log** with copy and clear buttons; it also shows the app's own log lines while open.
 - **Flash firmware**: sends a `.bin` firmware image over Bluetooth. The version is taken from the
   file name (e.g. `B21_Pro_3.10.bin` → 3.10). The printer verifies the image before committing it;
   a rejected or interrupted transfer leaves the old firmware running. Do not switch the printer off

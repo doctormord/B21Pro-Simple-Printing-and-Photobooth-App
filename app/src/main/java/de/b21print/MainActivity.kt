@@ -314,9 +314,13 @@ class MainActivity : AppCompatActivity() {
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     private fun fmt(v: Double) = if (v % 1.0 == 0.0) v.toInt().toString() else "%.1f".format(v)
 
+    // Debug console log, while it is open
+    private var consoleSink: ((String) -> Unit)? = null
+
     private fun log(msg: String) = runOnUiThread {
         val t = SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(Date())
         txtLog.text = "$t  $msg\n${txtLog.text}"
+        consoleSink?.invoke(msg)
     }
 
     private fun applyModeVisibility() {
@@ -911,112 +915,131 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Hidden debug console: sends a raw text command to the BLE characteristic and shows every
-    // reply. Also hosts printer diagnostics and the firmware flasher.
+    // Hidden debug console: test chart, printer diagnostics, firmware flasher, and raw text commands
+    // to the BLE characteristic with every reply. App log lines are mirrored into its log.
     private fun showDebugConsole() {
         val p = printer
-        if (p == null) {
-            // Without a printer only the test chart is useful
-            MaterialAlertDialogBuilder(this)
-                .setTitle("Debug console")
-                .setMessage(getString(R.string.print_need_printer))
-                .setPositiveButton("Load test chart") { _, _ -> loadTestChart() }
-                .setNegativeButton(R.string.close, null)
-                .show()
-            return
-        }
         val pad = dp(16f).toInt()
+        val gap = dp(8f).toInt()
         var dialog: androidx.appcompat.app.AlertDialog? = null
-        val input = com.google.android.material.textfield.TextInputEditText(this).apply {
-            setText("test get sensor"); setSingleLine(true)
+        fun button(label: String, enabled: Boolean = true, onClick: () -> Unit) =
+            com.google.android.material.button.MaterialButton(
+                this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = label; textSize = 12f; isSingleLine = true; isEnabled = enabled
+                setOnClickListener { onClick() }
+            }
+        fun row(vararg views: View) = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            for ((i, v) in views.withIndex()) addView(v, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { if (i > 0) marginStart = gap })
         }
-        val crlf = com.google.android.material.materialswitch.MaterialSwitch(this).apply {
-            text = "Append line ending (\r\n)"; isChecked = true
-        }
+
         val logView = TextView(this).apply {
             typeface = android.graphics.Typeface.MONOSPACE; textSize = 11f; setTextIsSelectable(true)
+            setPadding(gap, gap, gap, gap)
         }
-        val scroll = NestedScrollView(this).apply {
-            addView(logView); minimumHeight = dp(220f).toInt()
+        val logScroll = NestedScrollView(this).apply {
+            addView(logView)
+            setBackgroundColor(com.google.android.material.color.MaterialColors.getColor(
+                this, com.google.android.material.R.attr.colorSurfaceContainerHighest))
         }
         fun appendLog(line: String) = runOnUiThread {
             val t = SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(Date())
             logView.text = "$t  $line\n${logView.text}"
         }
-        p.rawListener = { bytes ->
+        p?.rawListener = { bytes ->
             val hex = bytes.joinToString(" ") { "%02x".format(it) }
             val txt = bytes.map { if (it in 32..126) it.toInt().toChar() else '.' }.joinToString("")
             appendLog("RX [$hex]  \"$txt\"")
         }
-        val presets = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            for (c in listOf("test get sensor", "test rfidMode 3", "#10001")) {
-                addView(com.google.android.material.button.MaterialButton(
-                    this@MainActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                    text = c; textSize = 11f
-                    setOnClickListener { input.setText(c) }
-                    val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    lp.marginEnd = dp(4f).toInt(); layoutParams = lp
+        consoleSink = { appendLog(it) }
+
+        val input = com.google.android.material.textfield.TextInputEditText(this).apply {
+            setText("test get sensor"); setSingleLine(true); textSize = 14f
+        }
+        val crlf = com.google.android.material.materialswitch.MaterialSwitch(this).apply {
+            text = "Append \\r\\n"; isChecked = true
+        }
+        val send = button("Send", p != null) {
+            var cmd = input.text?.toString().orEmpty()
+            if (crlf.isChecked) cmd += "\r\n"
+            appendLog("TX \"${cmd.replace("\r", "\\r").replace("\n", "\\n")}\"")
+            scope.launch {
+                try { p?.sendRaw(cmd.toByteArray(Charsets.US_ASCII)) }
+                catch (e: Exception) { appendLog("Error: ${e.message}") }
+            }
+        }
+        val presets = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(LinearLayout(this@MainActivity).apply {
+                for (c in listOf("test get sensor", "test rfidMode 3", "#10001")) {
+                    addView(Chip(this@MainActivity).apply {
+                        text = c; setOnClickListener { input.setText(c) }
+                    }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                        .apply { marginEnd = gap })
+                }
+                addView(Chip(this@MainActivity).apply {
+                    text = "0x55 heartbeat"
+                    isEnabled = p != null
+                    setOnClickListener {
+                        val bytes = Niimbot.packet(Niimbot.HEARTBEAT, intArrayOf(1))
+                        appendLog("TX 0x55 [" + bytes.joinToString(" ") { "%02x".format(it) } + "]")
+                        scope.launch { runCatching { p?.sendRaw(bytes) } }
+                    }
                 })
-            }
+            })
         }
-        val control = com.google.android.material.button.MaterialButton(
-            this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "Check: send 0x55 heartbeat"; textSize = 12f
-            setOnClickListener {
-                val bytes = Niimbot.packet(Niimbot.HEARTBEAT, intArrayOf(1))
-                appendLog("TX 0x55 [" + bytes.joinToString(" ") { "%02x".format(it) } + "]")
-                scope.launch { runCatching { p.sendRaw(bytes) } }
-            }
+        fun header(text: String) = TextView(this).apply {
+            this.text = text
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+            setPadding(0, pad, 0, gap / 2)
         }
+
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, dp(8f).toInt(), pad, 0)
-            addView(TextView(this@MainActivity).apply {
-                text = "Send a raw command to the firmware debug console. Read-only commands only."
-                textSize = 12f; setPadding(0, 0, 0, dp(8f).toInt())
+            setPadding(pad, gap, pad, 0)
+            if (p == null) addView(TextView(this@MainActivity).apply {
+                text = getString(R.string.print_need_printer); textSize = 12f
+                setPadding(0, 0, 0, gap)
             })
-            addView(com.google.android.material.button.MaterialButton(
-                this@MainActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                text = "Load test chart for this label"; textSize = 12f
-                setOnClickListener { dialog?.dismiss(); loadTestChart() }
+            addView(row(
+                button("Test chart") { dialog?.dismiss(); loadTestChart() },
+                button("Diagnostics", p != null) { scope.launch { p?.diagnose() } },
+            ))
+            addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
+                if (p != null) setTextColor(getColor(R.color.brand))
             })
-            addView(com.google.android.material.textfield.TextInputLayout(this@MainActivity).apply { addView(input) })
+            addView(header("Raw command (read-only commands only)"))
+            addView(LinearLayout(this@MainActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(com.google.android.material.textfield.TextInputLayout(this@MainActivity).apply { addView(input) },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(send, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = gap })
+            })
             addView(presets)
-            addView(control)
-            addView(com.google.android.material.button.MaterialButton(
-                this@MainActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                text = "Printer diagnostics (RFID / authenticity)"; textSize = 12f
-                setOnClickListener { scope.launch { p.diagnose() } }
-            })
-            addView(com.google.android.material.button.MaterialButton(
-                this@MainActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                text = "⚠ Flash firmware …"; textSize = 12f
-                setTextColor(getColor(R.color.brand))
-                setOnClickListener { pickFirmware() }
-            })
             addView(crlf)
-            addView(scroll)
+            addView(row(
+                header("Log"),
+                button("Copy") {
+                    val cm = getSystemService(android.content.ClipboardManager::class.java)
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("B21 log", logView.text))
+                    toast("Log copied")
+                },
+                button("Clear") { logView.text = "" },
+            ))
+            addView(logScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.3f).toInt()))
         }
         val dlg = MaterialAlertDialogBuilder(this)
             .setTitle("Debug console")
             .setView(body)
-            .setPositiveButton("Send", null)
-            .setNegativeButton(R.string.close) { d, _ -> d.dismiss() }
-            .setOnDismissListener { p.rawListener = null }
+            .setNegativeButton(R.string.close, null)
+            .setOnDismissListener { p?.rawListener = null; consoleSink = null }
             .create()
         dialog = dlg
         dlg.show()
-        // Keep the dialog open after Send
-        dlg.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            var cmd = input.text?.toString().orEmpty()
-            if (crlf.isChecked) cmd += "\r\n"
-            appendLog("TX \"${cmd.replace("\r","\\r").replace("\n","\\n")}\"")
-            scope.launch {
-                try { p.sendRaw(cmd.toByteArray(Charsets.US_ASCII)) }
-                catch (e: Exception) { appendLog("Error: ${e.message}") }
-            }
-        }
     }
 
     // Test chart sized to the area the photo goes into, loaded like a cropped photo

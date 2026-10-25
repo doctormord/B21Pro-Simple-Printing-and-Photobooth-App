@@ -405,11 +405,11 @@ object ImageProcessor {
             v = (v - lo) / (hi - lo) * 255f
             v = (v - 128f) * contrast + 128f + bright
             if (fine) {
-                // Dot-gain compensation in ink-coverage space (d = 1 - v, 1 = full black).
-                // Taper it out in the highlights (small d) so light tones keep their dots.
+                // Dot-gain compensation in ink-coverage space (d = 1 - v, 1 = full black). It also
+                // applies in the highlights: the dither now puts dots there, and uncorrected they
+                // printed light skin and white fabric grey.
                 val d = (1f - v / 255f).coerceIn(0f, 1f)
-                val wgt = ((d - 0.05f) / 0.17f).coerceIn(0f, 1f)
-                val di = d - DOT_GAIN.toFloat() * d * (1f - d) * wgt
+                val di = d - DOT_GAIN.toFloat() * d * (1f - d)
                 v = (1f - di) * 255f
             }
             v = if (o.invert) 255f - v else v.coerceIn(0f, 255f)

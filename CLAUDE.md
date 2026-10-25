@@ -37,6 +37,8 @@ There are no unit tests; changes are checked in the emulator and on paper.
 Things that look like bugs but are deliberate:
 - Atkinson passes on the full error for light tones (`atkinson`). Plain Atkinson cannot put a dot
   into any flat tone above ~223. Do not reintroduce a white-point headroom to fix highlights.
+- Dot-gain compensation runs over the full tone range. Tapering it out in the highlights made light
+  skin print grey once the dither started putting dots there.
 - Round labels and Memory Film print past the edge (bleed), round labels are not masked.
 
 ## Conventions

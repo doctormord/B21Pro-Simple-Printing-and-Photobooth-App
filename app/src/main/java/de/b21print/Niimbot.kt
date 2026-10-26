@@ -46,7 +46,7 @@ object Niimbot {
     val RESPONSE = mapOf(
         CONNECT to 0xC2, SET_DENSITY to 0x31, SET_LABEL_TYPE to 0x33, PRINT_START to 0x02,
         PAGE_START to 0x04, SET_PAGE_SIZE to 0x14, SET_QUANTITY to 0x16, PAGE_END to 0xE4, PRINT_STATUS to 0xB3,
-        PRINT_END to 0xF4, HEARTBEAT to 0xDD, PRINT_SYNC to 0xD3,
+        PRINT_END to 0xF4, HEARTBEAT to 0xDD, PRINT_SYNC to 0xD3, RFID_INFO to 0x1B,
     )
 
     class Packet(val cmd: Int, val data: ByteArray)
@@ -262,7 +262,9 @@ object Niimbot {
             }
             row
         }
-        // Pixel count per print head third when the row fits (as in niimbluelib)
+        // Pixel count per print head third when the row fits (as in niimbluelib). The manufacturer's
+        // app writes three counts per 24 bytes for its narrower rows; on paper neither form, nor all
+        // counts full or zero, changed anything.
         val chunk = PRINTHEAD_PIXELS / 8 / 3
         val canSplit = rowBytes <= chunk * 3
         val out = ArrayList<ByteArray>()

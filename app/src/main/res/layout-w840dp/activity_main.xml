@@ -379,6 +379,16 @@
                                 android:inputType="number" android:text="1" />
                         </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/profileLayout" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp" android:hint="@string/paper_profile"
+                        app:endIconMode="custom" app:endIconDrawable="@drawable/ic_arrow_drop_down">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/dropProfile" android:layout_width="match_parent"
+                            android:layout_height="wrap_content" android:inputType="none" android:maxLines="1"
+                            android:focusable="false" android:cursorVisible="false" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchRed"
                         android:layout_width="match_parent" android:layout_height="wrap_content"

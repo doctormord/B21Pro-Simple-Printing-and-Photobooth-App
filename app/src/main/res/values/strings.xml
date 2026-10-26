@@ -50,6 +50,7 @@
     <string name="raster_scanlines_wide">TV scanlines, wide</string>
     <string name="raster_mac">Macintosh (72 dpi)</string>
     <string name="raster_amiga">Amiga (Bayer)</string>
+    <string name="raster_bayer">Amiga fine (Bayer)</string>
     <string name="raster_fax">Fax</string>
     <string name="brightness">Brightness</string>
     <string name="contrast">Contrast</string>
@@ -161,4 +162,34 @@
         <item>@string/frame_double</item>
         <item>@string/frame_dashed</item>
     </string-array>
+    <string name="paper_profile">Paper profile</string>
+    <string name="profile_standard">Standard (built-in)</string>
+    <string name="profile_calibrate">Calibrate…</string>
+    <string name="profile_delete">Delete</string>
+    <string name="profile_delete_confirm">Delete the profile “%s”?</string>
+    <string name="profile_auto">Roll %1$s: paper profile “%2$s”</string>
+    <string name="profile_roll">Roll %s</string>
+    <string name="profile_new">Paper %d</string>
+    <string name="cal_title">Calibrate paper</string>
+    <string name="cal_mode_gray">16 grays</string>
+    <string name="cal_mode_mono">1-bit</string>
+    <string name="cal_info">%1$s, density %2$d, %3$s</string>
+    <string name="cal_steps">1. Print the chart.\n2. Photograph it in even, indirect light: the whole label in view, no shadow or glare on it.\n3. Check that the red boxes sit on the patches, name the profile and save.\nThe curve applies to this mode and density only.</string>
+    <string name="cal_print">Print chart</string>
+    <string name="cal_photo">Take photo</string>
+    <string name="cal_pick">Choose photo</string>
+    <string name="cal_reading">Reading the chart…</string>
+    <string name="cal_not_found">Chart not found. All four corner squares must be in the photo.</string>
+    <string name="cal_result">Darkness per step, 0 = paper, 100 = darkest step:\n%s</string>
+    <string name="cal_name">Profile name</string>
+    <string name="cal_save">Save</string>
+    <string name="cal_saved">Saved in “%s”</string>
+    <string name="cal_plain_label">Calibration needs a plain rectangular label of at least 30 × 30 mm.</string>
+    <string name="roll_two_color">Roll %s: black + red</string>
+    <string name="roll_black">Roll %s: black only</string>
+    <string name="cal_no_red">Red/black rolls cannot be calibrated yet.</string>
+    <string name="cal_no_look">Only the photo look and Amiga fine can be calibrated.</string>
+    <string name="cal_status_own">%s: measured</string>
+    <string name="cal_status_default">%s: not calibrated, built-in curve</string>
+    <string name="cal_status_photo">%s: not calibrated, uses the photo curve</string>
 </resources>

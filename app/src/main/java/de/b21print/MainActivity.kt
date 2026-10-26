@@ -100,6 +100,13 @@ class MainActivity : AppCompatActivity() {
     private var calibration = false
     // Tone sweep: the photo in vertical stripes with different tone targets, to pick one on paper
     private var sweep = false
+    // Paper profiles; null = the built-in defaults
+    private val profiles by lazy { PaperProfile.load(prefs) }
+    private var profile: PaperProfile? = null
+    // The roll in the printer, from its RFID tag (null: no tag, or not connected)
+    private var roll: B21Printer.Roll? = null
+    // While the calibration dialog is open: receives the photo of the chart
+    private var calPhoto: ((Uri) -> Unit)? = null
     private lateinit var toggleFont: MaterialButtonToggleGroup
     private lateinit var toggleStyle: MaterialButtonToggleGroup
     private lateinit var toggleFrame: MaterialButtonToggleGroup
@@ -211,6 +218,10 @@ class MainActivity : AppCompatActivity() {
         }
         dropPaper.setOnClickListener(pickPaper)
         findViewById<TextInputLayout>(R.id.paperLayout).setEndIconOnClickListener(pickPaper)
+        profile = profiles.firstOrNull { it.id == prefs.getString("profile", null) }
+        showProfile()
+        findViewById<TextInputEditText>(R.id.dropProfile).setOnClickListener { pickProfile() }
+        findViewById<TextInputLayout>(R.id.profileLayout).setEndIconOnClickListener { pickProfile() }
         val txtDensity = findViewById<TextView>(R.id.txtDensity)
         sliderDensity.value = prefs.getInt("density", 2).toFloat()
         txtDensity.text = sliderDensity.value.toInt().toString()
@@ -237,6 +248,7 @@ class MainActivity : AppCompatActivity() {
         redBand.visibility = if (switchRed.isChecked) View.VISIBLE else View.GONE
         switchRed.setOnCheckedChangeListener { _, on ->
             prefs.edit().putBoolean("redRoll", on).apply()
+            roll?.let { prefs.edit().putBoolean("twoColor_${it.barcode}", on).apply() }
             redBand.visibility = if (on) View.VISIBLE else View.GONE
             toggleSpeed.isEnabled = !on
             scheduleRender()
@@ -590,20 +602,20 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Image ----------
 
-    private fun takePhoto() {
+    private fun takePhoto(name: String = "photo.jpg", req: Int = REQ_CAMERA) {
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAMERA_PERM)
             return
         }
         val dir = File(cacheDir, "photos").apply { mkdirs() }
-        val file = File(dir, "photo.jpg")
+        val file = File(dir, name)
         val uri = FileProvider.getUriForFile(this, "de.b21print.files", file)
         photoUri = uri
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             .putExtra(MediaStore.EXTRA_OUTPUT, uri)
             .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         try {
-            startActivityForResult(intent, REQ_CAMERA)
+            startActivityForResult(intent, req)
         } catch (e: Exception) {
             log("No camera app found")
         }
@@ -627,6 +639,9 @@ class MainActivity : AppCompatActivity() {
         when (requestCode) {
             REQ_CAMERA -> photoUri?.let { loadImage(it) }
             REQ_GALLERY -> data?.data?.let { loadImage(it) }
+            REQ_CAL_CAMERA -> photoUri?.let { calPhoto?.invoke(it) }
+            REQ_BITMAP_FILE -> data?.data?.let { printBitmapFile(it) }
+            REQ_CAL_GALLERY -> data?.data?.let { calPhoto?.invoke(it) }
             REQ_ENABLE_BT -> ensurePermissions { scanAndConnect() }
             REQ_FW_FILE -> data?.data?.let { uri ->
                 val bytes = runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
@@ -650,17 +665,7 @@ class MainActivity : AppCompatActivity() {
     private fun loadImage(uri: Uri) {
         scope.launch {
             try {
-                source = withContext(Dispatchers.IO) {
-                    // ImageDecoder applies the EXIF rotation of camera photos
-                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, uri)) { dec, info, _ ->
-                        dec.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                        val max = maxOf(info.size.width, info.size.height)
-                        if (max > 2400) {
-                            val s = 2400f / max
-                            dec.setTargetSize((info.size.width * s).toInt(), (info.size.height * s).toInt())
-                        }
-                    }
-                }
+                source = withContext(Dispatchers.IO) { decode(uri) }
                 ImageStore.reset(source!!)
                 source = null
                 calibration = false
@@ -672,10 +677,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ImageDecoder applies the EXIF rotation of camera photos
+    private fun decode(uri: Uri): Bitmap =
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, uri)) { dec, info, _ ->
+            dec.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            val max = maxOf(info.size.width, info.size.height)
+            if (max > 2400) {
+                val s = 2400f / max
+                dec.setTargetSize((info.size.width * s).toInt(), (info.size.height * s).toInt())
+            }
+        }
+
     private fun num(v: CharSequence?, def: Double) = v.toString().replace(',', '.').toDoubleOrNull() ?: def
 
     private fun scheduleRender() {
         if (!::sliderOffsetY.isInitialized) return
+        showCalStatus()
         renderJob?.cancel()
         renderJob = scope.launch {
             delay(120)
@@ -694,12 +711,18 @@ class MainActivity : AppCompatActivity() {
                 val opts = photoOptions(if (ImageStore.free) ImageProcessor.Fit.CONTAIN else ImageProcessor.Fit.COVER)
                 val src = source
                 r = withContext(Dispatchers.Default) {
-                    if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round, sweepGammas())
+                    if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round,
+                        sweepGammas().map { "%.1f".format(Locale.ROOT, it) to opts.copy(toneGamma = it) })
                     else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round)
                 }
                 rendered = if (src != null) r else null
             }
-            preview.setImageBitmap(r.preview)
+            val stage = labelCard.parent as View
+            val s = minOf((stage.width - stage.paddingLeft - stage.paddingRight).toFloat() / r.preview.width,
+                (stage.height - stage.paddingTop - stage.paddingBottom).toFloat() / r.preview.height)
+            preview.setImageBitmap(withContext(Dispatchers.Default) {
+                ImageProcessor.forScreen(r.preview, (r.preview.width * s).toInt(), (r.preview.height * s).toInt())
+            })
             sizePreviewCard(r.preview.width, r.preview.height, label.round)
             updatePrintButton()
         }
@@ -739,6 +762,8 @@ class MainActivity : AppCompatActivity() {
             },
             redLo = sliderRed.values[0] / 100f,
             redHi = sliderRed.values[1] / 100f,
+            grayCurve = profile?.curve(PaperProfile.GRAY, sliderDensity.value.toInt()),
+            monoCurve = monoCurve(),
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,
@@ -869,7 +894,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (code == REQ_CAMERA_PERM && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) takePhoto()
+        if (code == REQ_CAMERA_PERM && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            if (calPhoto != null) takePhoto("chart.jpg", REQ_CAL_CAMERA) else takePhoto()
+        }
         if (code == REQ_PERMS) {
             if (results.isNotEmpty() && results.all { it == PackageManager.PERMISSION_GRANTED }) {
                 permissionCallback?.let { ensurePermissions(it) }
@@ -927,6 +954,7 @@ class MainActivity : AppCompatActivity() {
                 p.connect(device)
                 printer = p
                 Booth.printer = p
+                onRoll(p.readRoll())
             } catch (e: Exception) {
                 p.disconnect()
                 log("Error: ${e.message}")
@@ -988,6 +1016,25 @@ class MainActivity : AppCompatActivity() {
             }
             progress.visibility = View.INVISIBLE
             updatePrintButton()
+        }
+    }
+
+    // Debug: prints an image file dot for dot in 1-bit (dark = dot), no scaling or processing, e.g. a
+    // bitmap recovered from another app's Bluetooth traffic, to compare its dither through our sending
+    private fun printBitmapFile(uri: Uri) {
+        val p = printer ?: return
+        val density = sliderDensity.value.toInt()
+        val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
+        printJob { onProgress ->
+            val bmp = withContext(Dispatchers.IO) {
+                contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) }
+            } ?: throw Exception("Cannot read the file")
+            if (bmp.width > Niimbot.PRINTHEAD_PIXELS) throw Exception("Wider than ${Niimbot.PRINTHEAD_PIXELS} dots")
+            val w = bmp.width; val h = bmp.height
+            val px = IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
+            val bits = ByteArray(w * h) { if (Color.red(px[it]) < 128) 1 else 0 }
+            log("Bitmap file ${w}×$h, density $density …")
+            p.print(bits, w, h, density, labelType, 1, onProgress)
         }
     }
 
@@ -1128,6 +1175,22 @@ class MainActivity : AppCompatActivity() {
                 button("Gray wedge", p != null) { dialog?.dismiss(); printColorTest(gray = true) },
                 button("Red/black test", p != null) { dialog?.dismiss(); printColorTest(gray = false) },
             ))
+            addView(button("Save print bitmap") {
+                // Exactly the dots that would be sent, 1:1, for checking patterns without a print
+                val r = rendered ?: return@button toast(getString(R.string.print_need_photo))
+                val px = IntArray(r.bits.size) { i ->
+                    r.levels?.let { l -> val g = 255 - 17 * l[i]; android.graphics.Color.rgb(g, g, g) }
+                        ?: if (r.bits[i].toInt() != 0) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                }
+                val f = File(getExternalFilesDir(null), "print.png")
+                f.outputStream().use { Bitmap.createBitmap(px, r.width, r.height, Bitmap.Config.ARGB_8888)
+                    .compress(Bitmap.CompressFormat.PNG, 100, it) }
+                appendLog("Saved ${r.width}×${r.height} to ${f.absolutePath}")
+            })
+            addView(button("Print bitmap file …", p != null) {
+                dialog?.dismiss()
+                startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_BITMAP_FILE)
+            })
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
@@ -1156,12 +1219,236 @@ class MainActivity : AppCompatActivity() {
         }
         val dlg = MaterialAlertDialogBuilder(this)
             .setTitle("Debug console")
-            .setView(body)
+            .setView(NestedScrollView(this).apply { addView(body) })
             .setNegativeButton(R.string.close, null)
             .setOnDismissListener { p?.rawListener = null; consoleSink = null }
             .create()
         dialog = dlg
         dlg.show()
+    }
+
+    // ---------- Paper profiles and calibration ----------
+
+    private fun showProfile() {
+        findViewById<TextInputEditText>(R.id.dropProfile).setText(profile?.name ?: getString(R.string.profile_standard))
+        showCalStatus()
+    }
+
+    // Which curve the current settings calibrate and use: gray (16 levels), mono (1-bit photo look),
+    // bayer (Amiga fine); null for looks without a measured correction
+    private fun calMode(): String? = when {
+        switchRed.isChecked -> null
+        raster == ImageProcessor.Raster.PHOTO && prefs.getInt("speed", 1) == 1 -> PaperProfile.GRAY
+        raster == ImageProcessor.Raster.PHOTO -> PaperProfile.MONO
+        raster == ImageProcessor.Raster.BAYER -> PaperProfile.BAYER
+        else -> null
+    }
+
+    private fun modeName(mode: String) = getString(when (mode) {
+        PaperProfile.GRAY -> R.string.cal_mode_gray
+        PaperProfile.BAYER -> R.string.raster_bayer
+        else -> R.string.cal_mode_mono
+    })
+
+    // Amiga fine without its own curve uses the photo look's (the profile's, else built-in)
+    private fun monoCurve(): FloatArray? {
+        val d = sliderDensity.value.toInt()
+        val p = profile ?: return null
+        return (if (raster == ImageProcessor.Raster.BAYER) p.curve(PaperProfile.BAYER, d) else null)
+            ?: p.curve(PaperProfile.MONO, d)
+    }
+
+    // Under the profile field: whether the current mode and density have a measured curve
+    private fun showCalStatus() {
+        val layout = findViewById<TextInputLayout>(R.id.profileLayout)
+        val mode = calMode()
+        if (mode == null) { layout.helperText = null; return }
+        val d = sliderDensity.value.toInt()
+        val name = "${modeName(mode)} D$d"
+        layout.helperText = when {
+            profile?.curve(mode, d) != null -> getString(R.string.cal_status_own, name)
+            mode == PaperProfile.BAYER -> getString(R.string.cal_status_photo, name)
+            else -> getString(R.string.cal_status_default, name)
+        }
+    }
+
+    private fun selectProfile(p: PaperProfile?) {
+        profile = p
+        prefs.edit().putString("profile", p?.id).apply()
+        showProfile()
+        scheduleRender()
+    }
+
+    // Name, then what the profile holds, e.g. "16 grays D3, 1-bit D3 · 6978061953334"
+    private fun profileSummary(p: PaperProfile): String {
+        val curves = p.curves.keys.sorted().map { k ->
+            modeName(k.filter { !it.isDigit() }) +
+                " D" + k.filter { it.isDigit() }
+        }
+        val info = listOfNotNull(curves.joinToString(", ").ifEmpty { null }, p.barcode).joinToString(" · ")
+        return if (info.isEmpty()) p.name else "${p.name}\n$info"
+    }
+
+    private fun pickProfile() {
+        val list = listOf<PaperProfile?>(null) + profiles
+        val names = list.map { p -> p?.let { profileSummary(it) } ?: getString(R.string.profile_standard) }.toTypedArray()
+        val b = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.paper_profile)
+            .setSingleChoiceItems(names, list.indexOf(profile).coerceAtLeast(0)) { d, pos -> selectProfile(list[pos]); d.dismiss() }
+            .setPositiveButton(R.string.profile_calibrate) { _, _ -> showCalibration() }
+        profile?.let { cur ->
+            b.setNeutralButton(R.string.profile_delete) { _, _ ->
+                MaterialAlertDialogBuilder(this)
+                    .setMessage(getString(R.string.profile_delete_confirm, cur.name))
+                    .setPositiveButton(R.string.profile_delete) { _, _ ->
+                        profiles.remove(cur)
+                        PaperProfile.save(prefs, profiles)
+                        selectProfile(null)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+        b.show()
+    }
+
+    // A roll with an RFID tag sets the two-colour switch (a two-colour roll printed in the black-only
+    // modes comes out a faint red) and selects the profile saved for its barcode
+    private fun onRoll(r: B21Printer.Roll?) {
+        roll = r
+        if (r == null) return
+        log("Roll ${r.barcode}, ${r.used} of ${r.total} labels used")
+        val two = prefs.getBoolean("twoColor_${r.barcode}", r.barcode in TWO_COLOR_ROLLS)
+        if (two != switchRed.isChecked) {
+            switchRed.isChecked = two
+            toast(getString(if (two) R.string.roll_two_color else R.string.roll_black, r.barcode))
+        }
+        val p = profiles.firstOrNull { it.barcode == r.barcode } ?: return
+        if (p != profile) {
+            selectProfile(p)
+            toast(getString(R.string.profile_auto, r.barcode, p.name))
+        }
+    }
+
+    // Prints a chart in the current mode, reads a photo of it, and keeps the measured curve in a
+    // paper profile (for this mode and density)
+    private fun showCalibration() {
+        val l = selectedLabel
+        if (switchRed.isChecked) return toast(getString(R.string.cal_no_red))
+        val mode = calMode() ?: return toast(getString(R.string.cal_no_look))
+        val gray = mode == PaperProfile.GRAY
+        val density = sliderDensity.value.toInt()
+        val (wmm, hmm) = labelSizeMm()
+        val w = minOf(ImageProcessor.mmToPx(wmm), if (gray) Niimbot.COLOR_HEAD else Niimbot.PRINTHEAD_PIXELS)
+        val h = ImageProcessor.mmToPx(hmm)
+        // Patches of at least 2 mm, so the photo has enough of each to measure
+        val small = TestChart.calLayout(w, h, if (gray) 4 else 5).patches[0].let { minOf(it.w, it.h) < 24 }
+        if (l.round || l.window != null || small) return toast(getString(R.string.cal_plain_label))
+        val key = mode + density
+        val pad = dp(24f).toInt()
+        val gap = dp(8f).toInt()
+        var reading: FloatArray? = null
+
+        fun button(label: Int, onClick: () -> Unit) =
+            MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                setText(label); setOnClickListener { onClick() }
+            }
+        val status = TextView(this).apply { setPadding(0, gap, 0, gap) }
+        val imgChart = ImageView(this).apply { adjustViewBounds = true; visibility = View.GONE }
+        val imgPlot = ImageView(this).apply { adjustViewBounds = true; visibility = View.GONE; setPadding(0, gap, 0, gap) }
+        val name = TextInputEditText(this).apply {
+            setSingleLine(true)
+            setText(profile?.name ?: roll?.let { getString(R.string.profile_roll, it.barcode) }
+                ?: getString(R.string.profile_new, profiles.size + 1))
+        }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, gap, pad, 0)
+            addView(TextView(this@MainActivity).apply {
+                text = getString(R.string.cal_info,
+                    modeName(mode), density, l.title(this@MainActivity))
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+            })
+            addView(TextView(this@MainActivity).apply { setText(R.string.cal_steps); setPadding(0, gap, 0, gap) })
+            addView(button(R.string.cal_print) { printCalibration(mode, w, h, density) }.apply { isEnabled = printer != null })
+            addView(LinearLayout(this@MainActivity).apply {
+                addView(button(R.string.cal_photo) { takePhoto("chart.jpg", REQ_CAL_CAMERA) },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(button(R.string.cal_pick) {
+                    startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_CAL_GALLERY)
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = gap })
+            })
+            addView(status)
+            addView(imgChart)
+            addView(imgPlot)
+            addView(TextInputLayout(this@MainActivity).apply { hint = getString(R.string.cal_name); addView(name) })
+        }
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.cal_title)
+            .setView(NestedScrollView(this).apply { addView(body) })
+            .setPositiveButton(R.string.cal_save, null)
+            .setNegativeButton(R.string.close, null)
+            .setOnDismissListener { calPhoto = null }
+            .create()
+        dlg.show()
+        val save = dlg.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+        save.isEnabled = false
+        save.setOnClickListener {
+            val dark = reading ?: return@setOnClickListener
+            val nm = name.text?.toString()?.trim().orEmpty().ifEmpty { getString(R.string.profile_new, profiles.size + 1) }
+            val p = profiles.firstOrNull { it.name == nm }
+                ?: PaperProfile(java.util.UUID.randomUUID().toString(), nm).also { profiles += it }
+            p.curves[key] = dark
+            // One profile per roll type
+            roll?.let { r -> profiles.filter { it.barcode == r.barcode }.forEach { it.barcode = null }; p.barcode = r.barcode }
+            PaperProfile.save(prefs, profiles)
+            selectProfile(p)
+            toast(getString(R.string.cal_saved, nm))
+            dlg.dismiss()
+        }
+        calPhoto = { uri ->
+            status.setText(R.string.cal_reading)
+            imgChart.visibility = View.GONE
+            imgPlot.visibility = View.GONE
+            save.isEnabled = false
+            reading = null
+            scope.launch {
+                val r = withContext(Dispatchers.Default) {
+                    runCatching { ChartReader.read(decode(uri), w, h, if (gray) 4 else 5) }
+                        .onFailure { log("Calibration: ${it.message}") }.getOrNull()
+                }
+                if (r == null) { status.setText(R.string.cal_not_found); return@launch }
+                reading = r.dark
+                status.text = getString(R.string.cal_result, r.dark.joinToString(" ") { Math.round(it * 100).toString() })
+                imgChart.setImageBitmap(r.rectified)
+                imgChart.visibility = View.VISIBLE
+                imgPlot.setImageBitmap(ChartReader.plot(r.dark, 600, 300))
+                imgPlot.visibility = View.VISIBLE
+                save.isEnabled = true
+            }
+        }
+    }
+
+    private fun printCalibration(mode: String, w: Int, h: Int, density: Int) {
+        val p = printer ?: return
+        val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
+        val bayer = mode == PaperProfile.BAYER
+        printJob { onProgress ->
+            log("Calibration chart ${w}×$h, $mode, density $density …")
+            if (mode == PaperProfile.GRAY) {
+                val levels = withContext(Dispatchers.Default) { TestChart.grayCalibration(w, h, "CAL 16 D$density") }
+                val r = ImageProcessor.Result(ByteArray(w * h), w, h, Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888), levels)
+                p.printResult(r, false, density, labelType, 1, onProgress)
+            } else {
+                val bits = withContext(Dispatchers.Default) {
+                    val px = IntArray(w * h)
+                    TestChart.calibration(w, h, if (bayer) "CAL AMIGA F D$density" else "CAL D$density", bayer)
+                        .getPixels(px, 0, w, 0, 0, w, h)
+                    ByteArray(w * h) { if (px[it] and 0xFFFFFF == 0) 1 else 0 }
+                }
+                p.print(bits, w, h, density, labelType, 1, onProgress)
+            }
+        }
     }
 
     // Test chart sized to the area the photo goes into, loaded like a cropped photo
@@ -1266,5 +1553,10 @@ class MainActivity : AppCompatActivity() {
         const val REQ_FW_FILE = 7
         const val REQ_CROP = 6
         const val REQ_CAMERA_PERM = 8
+        const val REQ_CAL_CAMERA = 9
+        const val REQ_CAL_GALLERY = 10
+        const val REQ_BITMAP_FILE = 11
+        // Barcodes of known black + red rolls; others are remembered from the switch
+        val TWO_COLOR_ROLLS = setOf("030325120")
     }
 }

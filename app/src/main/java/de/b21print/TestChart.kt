@@ -29,6 +29,8 @@ object TestChart {
         '8' to ".###.|#...#|#...#|.###.|#...#|#...#|.###.",
         '9' to ".###.|#...#|#...#|.####|....#|...#.|.##..",
         'B' to "####.|#...#|#...#|####.|#...#|#...#|####.",
+        'M' to "#...#|##.##|#.#.#|#.#.#|#...#|#...#|#...#",
+        'G' to ".###.|#...#|#....|#.###|#...#|#...#|.###.",
         'P' to "####.|#...#|#...#|####.|#....|#....|#....",
         'R' to "####.|#...#|#...#|####.|#.#..|#..#.|#...#",
         'I' to ".###.|..#..|..#..|..#..|..#..|..#..|.###.",
@@ -67,43 +69,70 @@ object TestChart {
 
     const val CAL_STEPS = 25
 
-    // Calibration chart at print resolution (1 px = 1 dot), already dithered, so it reaches the
-    // printer unchanged when printed with the hard-threshold raster. 5 × 5 patches of the tones
-    // 255 · (1 − i / 24), row by row, with white gutters as a local paper-white reference, solid
-    // corner squares for locating the chart in a photo, and the print settings as text.
-    fun calibration(w: Int, h: Int, caption: String): Bitmap {
-        val px = IntArray(w * h) { -1 }
-        fun fill(x0: Int, y0: Int, x1: Int, y1: Int) {
-            for (y in maxOf(0, y0) until minOf(h, y1)) for (x in maxOf(0, x0) until minOf(w, x1)) px[y * w + x] = BLACK
-        }
+    class Box(val x: Int, val y: Int, val w: Int, val h: Int)
+
+    // Layout of the calibration charts: four solid corner squares for locating the chart in a photo,
+    // n × n patches (row by row) with white gutters around each as a local paper-white reference
+    class CalLayout(val corners: List<Box>, val patches: List<Box>, val gut: Int, val margin: Int)
+
+    fun calLayout(w: Int, h: Int, n: Int): CalLayout {
         val mm = 591 / 50f
         val m = (2.5f * mm).toInt()          // edge margin
         val f = (3f * mm).toInt()            // corner square
-        for ((cx, cy) in listOf(m to m, w - m - f to m, m to h - m - f, w - m - f to h - m - f)) fill(cx, cy, cx + f, cy + f)
+        val corners = listOf(m to m, w - m - f to m, m to h - m - f, w - m - f to h - m - f).map { (x, y) -> Box(x, y, f, f) }
         val gut = (1f * mm).toInt()
         val left = m + f + gut; val right = w - m - f - gut
         val top = m + f + gut; val bottom = h - m - f - gut
-        val cw = (right - left - 4 * gut) / 5
-        val ch = (bottom - top - 4 * gut) / 5
-        for (i in 0 until CAL_STEPS) {
-            val x0 = left + (i % 5) * (cw + gut)
-            val y0 = top + (i / 5) * (ch + gut)
-            val bits = ImageProcessor.ditherFlat(255f * (1f - i / (CAL_STEPS - 1f)), cw, ch)
-            for (y in 0 until ch) for (x in 0 until cw) if (bits[y * cw + x].toInt() != 0) px[(y0 + y) * w + x0 + x] = BLACK
+        val cw = (right - left - (n - 1) * gut) / n
+        val ch = (bottom - top - (n - 1) * gut) / n
+        val patches = List(n * n) { i -> Box(left + (i % n) * (cw + gut), top + (i / n) * (ch + gut), cw, ch) }
+        return CalLayout(corners, patches, gut, m)
+    }
+
+    // Calibration chart at print resolution (1 px = 1 dot), already dithered, so it reaches the
+    // printer unchanged when printed with the hard-threshold raster: 5 × 5 patches of the tones
+    // 255 · (1 − i / 24) and the print settings as text. bayer: patches in the Amiga fine pattern
+    // instead of the photo dither, so the curve fits that look.
+    fun calibration(w: Int, h: Int, caption: String, bayer: Boolean = false): Bitmap {
+        val px = IntArray(w * h) { -1 }
+        val lay = calLayout(w, h, 5)
+        for (b in lay.corners) for (y in b.y until b.y + b.h) for (x in b.x until b.x + b.w) px[y * w + x] = BLACK
+        for ((i, b) in lay.patches.withIndex()) {
+            val bits = ImageProcessor.ditherFlat(255f * (1f - i / (CAL_STEPS - 1f)), b.w, b.h, bayer, b.x, b.y)
+            for (y in 0 until b.h) for (x in 0 until b.w) if (bits[y * b.w + x].toInt() != 0) px[(b.y + y) * w + b.x + x] = BLACK
         }
-        // Caption between the bottom corner squares
+        val bits = ByteArray(w * h)
+        calCaption(bits, w, h, lay, caption, 1)
+        for (i in bits.indices) if (bits[i].toInt() != 0) px[i] = BLACK
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    // Gray-mode calibration chart, levels 0 = white .. 15 = black: 4 × 4 patches of the levels 0..15
+    fun grayCalibration(w: Int, h: Int, caption: String): ByteArray {
+        val px = ByteArray(w * h)
+        val lay = calLayout(w, h, 4)
+        for (b in lay.corners) for (y in b.y until b.y + b.h) for (x in b.x until b.x + b.w) px[y * w + x] = 15
+        for ((i, b) in lay.patches.withIndex()) for (y in b.y until b.y + b.h) px.fill(i.toByte(), y * w + b.x, y * w + b.x + b.w)
+        calCaption(px, w, h, lay, caption, 15)
+        return px
+    }
+
+    // Caption between the bottom corner squares
+    private fun calCaption(px: ByteArray, w: Int, h: Int, lay: CalLayout, caption: String, ink: Int) {
+        val f = lay.corners[0].w
         val s = maxOf(1, (f / 9))
-        var x = m + f + gut
-        val y = h - m - f + (f - 7 * s) / 2
+        var x = lay.margin + f + lay.gut
+        val y = h - lay.margin - f + (f - 7 * s) / 2
         for (c in caption.uppercase()) {
             FONT[c]?.let { g ->
-                for ((ry, line) in g.withIndex()) for ((rx, ch2) in line.withIndex()) {
-                    if (ch2 == '#') fill(x + rx * s, y + ry * s, x + rx * s + s, y + ry * s + s)
+                for ((ry, line) in g.withIndex()) for ((rx, ch) in line.withIndex()) if (ch == '#') {
+                    for (yy in y + ry * s until y + ry * s + s) for (xx in x + rx * s until x + rx * s + s) {
+                        if (xx in 0 until w && yy in 0 until h) px[yy * w + xx] = ink.toByte()
+                    }
                 }
             }
             x += 6 * s
         }
-        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
     }
 
     private const val BLACK = 0xff000000.toInt()

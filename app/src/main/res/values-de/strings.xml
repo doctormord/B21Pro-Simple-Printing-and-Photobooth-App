@@ -49,6 +49,7 @@
     <string name="raster_scanlines_wide">TV-Scanlines, breit</string>
     <string name="raster_mac">Macintosh (72 dpi)</string>
     <string name="raster_amiga">Amiga (Bayer)</string>
+    <string name="raster_bayer">Amiga fein (Bayer)</string>
     <string name="raster_fax">Fax</string>
     <string name="brightness">Helligkeit</string>
     <string name="contrast">Kontrast</string>
@@ -148,4 +149,34 @@
     <string name="label_mini">Mini</string>
     <string name="label_square_xs">Quadrat XS</string>
     <string name="label_narrow">Schmal</string>
+    <string name="paper_profile">Papierprofil</string>
+    <string name="profile_standard">Standard (eingebaut)</string>
+    <string name="profile_calibrate">Kalibrieren …</string>
+    <string name="profile_delete">Löschen</string>
+    <string name="profile_delete_confirm">Profil „%s“ löschen?</string>
+    <string name="profile_auto">Rolle %1$s: Papierprofil „%2$s“</string>
+    <string name="profile_roll">Rolle %s</string>
+    <string name="profile_new">Papier %d</string>
+    <string name="cal_title">Papier kalibrieren</string>
+    <string name="cal_mode_gray">16 Graustufen</string>
+    <string name="cal_mode_mono">1-Bit</string>
+    <string name="cal_info">%1$s, Dichte %2$d, %3$s</string>
+    <string name="cal_steps">1. Testbild drucken.\n2. Bei gleichmäßigem, indirektem Licht fotografieren: das ganze Etikett im Bild, ohne Schatten und Spiegelung.\n3. Prüfen, ob die roten Kästchen auf den Feldern sitzen, Profil benennen und speichern.\nDie Kurve gilt nur für diesen Modus und diese Dichte.</string>
+    <string name="cal_print">Testbild drucken</string>
+    <string name="cal_photo">Foto aufnehmen</string>
+    <string name="cal_pick">Foto wählen</string>
+    <string name="cal_reading">Testbild wird ausgewertet …</string>
+    <string name="cal_not_found">Testbild nicht gefunden. Alle vier Eckquadrate müssen im Foto sein.</string>
+    <string name="cal_result">Schwärzung je Stufe, 0 = Papier, 100 = dunkelste Stufe:\n%s</string>
+    <string name="cal_name">Profilname</string>
+    <string name="cal_save">Speichern</string>
+    <string name="cal_saved">Gespeichert in „%s“</string>
+    <string name="cal_plain_label">Zum Kalibrieren ein normales rechteckiges Etikett ab 30 × 30 mm wählen.</string>
+    <string name="roll_two_color">Rolle %s: Schwarz + Rot</string>
+    <string name="roll_black">Rolle %s: nur Schwarz</string>
+    <string name="cal_no_red">Rot-Schwarz-Rollen lassen sich noch nicht kalibrieren.</string>
+    <string name="cal_no_look">Kalibrieren lassen sich nur der Foto-Look und Amiga fein.</string>
+    <string name="cal_status_own">%s: gemessen</string>
+    <string name="cal_status_default">%s: nicht kalibriert, eingebaute Kurve</string>
+    <string name="cal_status_photo">%s: nicht kalibriert, nutzt die Foto-Kurve</string>
 </resources>

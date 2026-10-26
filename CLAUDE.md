@@ -25,6 +25,9 @@ Everything else is checked in the emulator and on paper.
 - Strings exist in `values/` (English) and `values-de/` (German). Keep both in step.
 - The debug console UI is built in code with hard-coded English strings; that is intentional.
 - `tools/mkchart.py`: test chart generator; `TestChart.kt` is its Kotlin port. Keep them in sync.
+- Paper profiles (`PaperProfile.kt`) hold measured curves per mode and density ("gray3", "mono3"),
+  as JSON in the prefs. `ChartReader.kt` reads the calibration charts (`TestChart.calLayout`) from a
+  photo in the app; `tools/calib.py` mirrors the 5 × 5 layout and must stay in sync with it.
 
 ## Image pipeline (ImageProcessor.render)
 
@@ -47,8 +50,9 @@ Things that look like bugs but are deliberate:
 - Atkinson passes on the full error for light tones (`atkinson`). Plain Atkinson cannot put a dot
   into any flat tone above ~223. Do not reintroduce a white-point headroom to fix highlights.
 - The photo look's tone correction is a measured table, not a formula: the printer has a sharp
-  knee at ~25 % coverage. To re-measure, print the calibration chart (debug console), photograph it
-  and run `tools/calib.py`; the result goes into `PrintCurve.kt` (one table per density).
+  knee at ~25 % coverage. Without it photos print far too dark (tried in 1.4.0-beta23). To
+  re-measure, print the calibration chart (debug console), photograph it and run `tools/calib.py`;
+  the result goes into `PrintCurve.kt` (one table per density).
 - Round labels and Memory Film print past the edge (bleed), round labels are not masked.
 - Red/black: the colour is chosen per area (blurred tone, 2 × 2-dot cells), not per dot. A red dot
   next to a black one prints black.

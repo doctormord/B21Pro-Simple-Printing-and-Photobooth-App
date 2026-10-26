@@ -39,8 +39,9 @@ On paper a red dot next to a black one turns black (the heat spreads), so a 1-do
 checkerboard prints as a dark, almost black area, while 8-dot stripes stay clean. Photos therefore
 get colour areas, not colour dots: a band of image tones (a range slider) prints red, the rest black,
 decided on a slightly blurred image, with soft band edges blended in 2 × 2-dot cells, similar to
-split toning. Black dots in light tones show a red tint on these rolls, presumably because single
-dots do not reach the heat for black.
+split toning. The roll itself cannot print a neutral black: its black is a dark red-brown and the
+base is cream, so the preview shows those two colours (taken from a photo of a print) instead of
+black on white.
 
 ### Brightness and contrast
 Both sliders felt touchy. Brightness was an offset added to every tone, contrast a linear stretch,
@@ -48,9 +49,72 @@ both clipping at black and white. On a photo with a large light sky, five steps 
 the whole sky to paper white: measured on the preview, steps −5 → 0 → +5 changed the mean tone
 three times as much as −20 → −5. In red/black mode this also moved whole areas between red and
 black. Both are now curves with fixed end points (brightness: a power curve on the mid-tones,
-contrast: an S-curve), and the preview changes evenly across the slider.
+contrast: an S-curve), and the preview changes evenly across the slider. With fixed end points,
+though, an off-white background could no longer be pushed to paper white and kept a sprinkle of
+dots; raising brightness or contrast now also clips the lightest tones (up to 15 % of the range).
+
+### Paper profiles and calibration
+Cheap rolls print very differently from original ones (in gray, the lightest seven levels printed
+white), and the red/black roll prints much darker than its preview, so one built-in curve cannot fit
+all papers. Measuring used to mean printing the chart, photographing it and running a Python script
+on a computer. The app now does that itself: a calibration dialog prints a chart in the current mode,
+reads a photo of it (a Kotlin port of `tools/calib.py`, without OpenCV) and stores the measured curve
+in a paper profile. The gray chart is new: 16 patches of the levels 0..15.
+
+Profiles are matched to rolls by the barcode in their RFID tag, read when the printer connects; for
+rolls without a tag the profile is chosen by hand. The reader was checked on a simulated photo
+(perspective, turned by 90°, light falloff, blur, noise, a known curve with two equal levels): it
+returned the curve to within rounding.
+
+Then the first gray calibration on paper: on an original roll at density 3 the levels 1–9 printed
+nothing at all, 10 was 14 % dark, and only six levels were usable. A test print showed that this
+does not depend on the rest of the row, on hot neighbouring dots or on command `0x59` (which the
+manufacturer's app sends before gray prints), and densities 4 and 5 moved the first visible level by
+one at most. The gray mode had spread photo tones evenly over all 16 levels, so everything lighter
+than about mid-grey printed white. It now uses the measured levels by default and treats 1–9 as
+paper.
+
+The same tag also sets the *Black + red roll* switch: a two-colour roll printed in gray or 1-bit came
+out a faint red.
 
 ### Other
+- *Amiga fine*: the Amiga cross-hatch on single dots (8 × 8 Bayer, 65 tones) instead of 2 × 2 cells,
+  with the measured tone correction of the photo look, because single dots merge on paper.
+- Cross stripes in 1-bit photo prints that the manufacturer's app did not have. First suspected:
+  the printer running dry between BLE writes, so rows went out several per write. The stripes
+  stayed, and a sparse row test showed no lost rows. Then the tone correction: every built-in table
+  has two steps measured equally dark, so it jumped 11 dither levels between photo tones 59 and 60
+  and could turn faint banding in a photo into stripes; equal steps are now bridged (largest jump
+  2.6). The photo itself turned out clean when zoomed in, and the stripes stayed exactly in place
+  whatever the sending speed, also with 1-bit prints waiting for buffer room before each block of
+  50 rows (the status then counted down from 1999 by 50 per block, so in 1-bit mode it is not the
+  free buffer). Fixed places for any timing point to the row data itself. Switching the dot count
+  in the row header between a few guessed formats did not help either. A Bluetooth capture of the
+  manufacturer's app printing the same photo finally showed three differences: colour mode 2 in
+  the print start (we sent 0), rows only as wide as the label (61 bytes for 484 dots; we padded
+  every row to 591 dots), and three dot counts per row, one per 24 bytes. Our 74-byte rows had
+  carried the total in one field instead, which the printer presumably read as three parts. It
+  also sends the whole label in under a second without waiting. 1-bit prints now follow it in all
+  three points; colour mode 2 printed noticeably lighter and the stripes darker. Claiming every
+  row full or empty changed nothing either, so the header counts are not the cause, and 1-bit went
+  back to the earlier form (colour mode 0, rows padded to the head width). A dither sweep (four 1-bit
+  variants side by side on one label, since removed) tested the next suspect, the dither itself. On it, the two stripes with the measured tone correction (Atkinson and
+  Floyd-Steinberg) showed the cross stripes, Floyd-Steinberg without correction and Fax did not.
+  The correction lifts the mid-tones until they are fields of isolated dots, and on this paper a
+  single dot sits right at the threshold (a 1-dot line nearly vanished in the row test), so small
+  changes in heat from row to row switch whole rows of them on or off. Making uncorrected
+  Floyd-Steinberg the photo look (beta23) printed photos far too dark and muddy, so the photo look
+  went back to corrected Atkinson. The stripes are still open. Dot pairs (2 × 2 cells with 0, 2, 3
+  or 4 dots) removed lone dots but showed a herringbone texture and were dropped. Next try:
+  Amiga fine, whose ordered pattern gives each tone one fixed pattern, so a calibration chart in
+  that pattern measures exactly what a photo prints. Each look now has its own curve. Calibrated this way, Amiga fine printed a photo with smooth tones
+  and no visible stripes. Its preview showed bands that the paper does not have: the ImageView
+  enlarged it by a non-integer factor with bilinear sampling. The preview is now enlarged by a whole
+  factor without filtering and area-averaged to screen size.
+  Last checks on the stripes: the manufacturer's bitmap, printed through our sending (*Print bitmap
+  file*), came out clean; a row-by-row comparison of a striped print with the exact rows we had sent
+  found no relation to anything in those rows; and in a label split between the two dithers the
+  stripes stayed in our half. Paused there: the photo look stays as it is.
 - NB838 photo frames (54 × 84 mm, rose, silver and pink frames) as a label preset; the window was
   measured from the product diagram.
 - The tone target (gamma) is a setting in the debug console; the tone sweep centres on it.

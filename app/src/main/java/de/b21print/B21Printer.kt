@@ -16,7 +16,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 
-// BLE connection to the B21 Pro. No RFID query, no label check.
+// BLE connection to the B21 Pro. The roll's RFID tag is read only to pick its paper profile; no label check.
 @SuppressLint("MissingPermission")
 class B21Printer(
     private val context: Context,
@@ -302,7 +302,8 @@ class B21Printer(
 
     private suspend fun startPage(v: Variant, width: Int, height: Int, copies: Int) {
         val ps = when (v) {
-            // 9-byte D110M_V4 start: copies, 0,0,0,0, pageColor(0), speed, flag(0)
+            // 9-byte D110M_V4 start: copies, 0,0,0,0, colour mode, speed, flag(0). The manufacturer's app
+            // sends colour mode 2 for 1-bit; on paper that only printed lighter, so it stays 0 (niimbluelib).
             Variant.V4 -> Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0, speed, 0)
             Variant.B1 -> Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0)
             Variant.V1 -> intArrayOf(1)
@@ -369,13 +370,26 @@ class B21Printer(
         }
         if (used == null) throw Exception("Printer accepts no print job, see log")
 
+        // Several row packets per BLE write; the manufacturer's app also sends a whole label in under a
+        // second without waiting
         val rows = Niimbot.encodeRows(img, w, height)
-        rows.forEachIndexed { i, row ->
-            write(row)
+        val t0 = System.currentTimeMillis()
+        val chunk = java.io.ByteArrayOutputStream()
+        var writes = 0
+        suspend fun flush() {
+            if (chunk.size() == 0) return
+            write(chunk.toByteArray())
+            chunk.reset()
             // Short pause so the printer buffer does not overflow
-            if (i % 8 == 7) delay(10)
+            if (++writes % 8 == 0) delay(10)
+        }
+        rows.forEachIndexed { i, row ->
+            if (chunk.size() + row.size > writePayload) flush()
+            chunk.write(row)
             onProgress((i + 1f) / rows.size)
         }
+        flush()
+        log("Rows sent in ${System.currentTimeMillis() - t0} ms ($writes writes)")
 
         finishJob(copies, heartbeat = used == Variant.V4)
     }
@@ -434,8 +448,9 @@ class B21Printer(
     }
 
     // 16-level gray (levels: 576 × height, 0..15)
-    suspend fun printGray(levels: ByteArray, height: Int, density: Int, labelType: Int, onProgress: (Float) -> Unit) =
-        printColor(Niimbot.PAGE_COLOR_GRAY, Niimbot.encodeGrayRows(levels, height), height, density, labelType, onProgress)
+    suspend fun printGray(
+        levels: ByteArray, height: Int, density: Int, labelType: Int, onProgress: (Float) -> Unit,
+    ) = printColor(Niimbot.PAGE_COLOR_GRAY, Niimbot.encodeGrayRows(levels, height), height, density, labelType, onProgress)
 
     // Black and red on a two-colour roll (planes: 576 × height, 1 = ink)
     suspend fun printTwoColor(black: ByteArray, red: ByteArray, height: Int, density: Int, labelType: Int, onProgress: (Float) -> Unit) =
@@ -484,6 +499,23 @@ class B21Printer(
             delay(150)
         }
         log("Printer buffer stayed full, sending anyway")
+    }
+
+    class Roll(val barcode: String, val serial: String, val total: Int, val used: Int, val type: Int)
+
+    // The roll's RFID tag: 8-byte UID, barcode and serial (each length-prefixed), labels total and
+    // used (u16), paper type. A first byte of 0 means no tag (no-name rolls).
+    suspend fun readRoll(): Roll? {
+        val d = runCatching { request(Niimbot.RFID_INFO, intArrayOf(1)) }.getOrNull() ?: return null
+        if (d.isEmpty() || d[0].toInt() == 0) return null
+        return runCatching {
+            var i = 8
+            fun u8() = d[i++].toInt() and 0xFF
+            fun str() = u8().let { n -> String(d, i, n, Charsets.US_ASCII).also { i += n } }
+            val barcode = str(); val serial = str()
+            val total = (u8() shl 8) or u8(); val used = (u8() shl 8) or u8()
+            Roll(barcode, serial, total, used, u8())
+        }.getOrNull()?.takeIf { it.barcode.isNotBlank() }
     }
 
     // Queries what the printer reports about the roll and authenticity check; raw replies go to the log

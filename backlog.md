@@ -4,13 +4,30 @@ Open items, roughly in order of priority.
 
 ## Gray and red/black (needs paper)
 
-- **Gray tone curve per paper.** The 16 levels are used as if they printed evenly. Measure them per
-  roll type (a gray version of the calibration chart, read with `tools/calib.py`), and decide how
-  the app knows which paper is loaded: a choice in the UI, or the roll's RFID data.
+- **Low gray levels print white.** Levels 1–9 leave no mark (densities 3–5, original and coloured
+  rolls); neither the rest of the row, hot neighbours nor command `0x59` change that. The
+  manufacturer's app still uses levels 4–9 heavily in photos: print the same photo from both apps
+  and compare the light tones.
+- **Amiga fine with its own curve.** Calibrate it (chart now uses the Bayer pattern), print the
+  photo that showed cross stripes: does the tone fit, and are there stripes?
+- **Cross stripes in 1-bit photos.** Open, paused. Facts: not the transfer, the row header, the
+  source photo or our row data (stripes on paper do not correlate with coverage, lone dots, pairs or
+  row load of the sent rows). The manufacturer's bitmap prints clean through our sending, and in a
+  label split between its dither and ours the stripes stay in our half, with nothing visible
+  crossing the middle. Likely a small row-wise variation in the printer that only shows in large,
+  smooth mid-tone areas, which the calibrated photo look produces and the manufacturer's harder,
+  darker dither does not. Debug tools: *Save print bitmap*, *Print bitmap file*.
+- **Amiga fine on paper.** Does the photo look's measured curve suit the Bayer pattern, or does it
+  need its own calibration chart?
+- **Calibrate on paper.** The in-app calibration (paper profiles) has only been checked on a
+  simulated photo. Measure gray and 1-bit on an original and a cheap roll and compare with the
+  `tools/calib.py` results.
+- **Calibrate red/black.** A chart with separate black and red patches and a curve per ink; the
+  profile is already there.
 - Which densities suit the gray mode, and does the speed byte matter there (the app sends 0)?
 - **Red/black tones.** Red dots print lighter than black ones, so a red band reads lighter than the
-  same tones in black. Check on paper whether red areas need more dots. Black dots in light tones
-  show a red tint on two-colour rolls.
+  same tones in black. Check on paper whether red areas need more dots. The roll's black is a dark
+  red-brown and prints much darker than the preview on photos; it needs its own tone curve.
 - Signs in red on two-colour rolls (text or frame).
 - What command `0x59` does (seen before gray prints; the printer replies with the label size in
   dots and mm).

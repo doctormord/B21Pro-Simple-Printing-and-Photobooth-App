@@ -18,6 +18,12 @@ object PrintCurve {
         floatArrayOf(0.000f, 0.051f, 0.094f, 0.121f, 0.165f, 0.218f, 0.250f, 0.418f, 0.587f, 0.696f, 0.814f, 0.862f, 0.862f, 0.975f, 0.976f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f),
     )
 
+    // Gray mode without a paper profile: how dark each of the 16 levels prints (0 = paper, 1 = level 15).
+    // Measured with the gray calibration chart on an original roll at density 3. Levels 1–9 leave no
+    // mark at any density (checked at 3, 4 and 5 on several rolls), so they count as paper and the
+    // diffusion never uses them; light tones become sparse dots of level 10 instead of printing white.
+    val GRAY = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0.14f, 0.48f, 0.71f, 0.71f, 0.95f, 1f)
+
     // How dark a photo tone should print, 1 − (v/255)^gamma: 1.0 is linear, ~2.2 the screen's sRGB.
     // Chosen from a tone-sweep print (1.0 / 1.3 / 1.6 / 2.0) at density 3: higher values look grey
     // and flat on thermal paper.
@@ -30,18 +36,36 @@ object PrintCurve {
 
     private val luts = HashMap<String, FloatArray>()
 
-    private fun table(density: Int): FloatArray {
-        val raw = FINE[density.coerceIn(1, 5) - 1]
-        val k = raw.indexOfFirst { it >= TRUSTED }.takeIf { it in 1 until raw.size - 1 } ?: return raw
+    // measured: a paper profile's own table (same steps), instead of the built-in one
+    private fun table(density: Int, measured: FloatArray?): FloatArray {
+        val raw = measured ?: FINE[density.coerceIn(1, 5) - 1]
+        val k = raw.indexOfFirst { it >= TRUSTED }.takeIf { it in 1 until raw.size - 1 } ?: return bridge(raw)
         val last = raw.size - 1
-        return FloatArray(raw.size) { i ->
+        return bridge(FloatArray(raw.size) { i ->
             if (i <= k) raw[i] else raw[k] + (1f - raw[k]) * (i - k) / (last - k)
+        })
+    }
+
+    // Two steps measured equally dark (all built-in tables have one at steps 10/11) made the
+    // correction jump a whole step at a single photo tone: tones 59 and 60 got dither inputs 11
+    // apart, so faint banding in a photo (e.g. one taken of a screen) printed as cross stripes in
+    // the shadows. Equal runs are therefore bridged by a straight line to the next darker step.
+    private fun bridge(d: FloatArray): FloatArray {
+        val out = d.copyOf()
+        var i = 0
+        while (i < out.size - 1) {
+            var j = i + 1
+            while (j < out.size && out[j] <= out[i]) j++
+            if (j == out.size) break
+            for (m in i + 1 until j) out[m] = out[i] + (out[j] - out[i]) * (m - i) / (j - i)
+            i = j
         }
+        return out
     }
 
     // Printed darkness of a dither input tone (0..255)
-    fun darkness(density: Int, tone: Float): Float {
-        val dark = table(density)
+    fun darkness(density: Int, tone: Float, measured: FloatArray? = null): Float {
+        val dark = table(density, measured)
         val x = ((255f - tone.coerceIn(0f, 255f)) / 255f) * (dark.size - 1)
         val i = x.toInt().coerceAtMost(dark.size - 2)
         val f = x - i
@@ -49,9 +73,9 @@ object PrintCurve {
     }
 
     // Dither input tone for each photo tone 0..255, so the print has the target darkness
-    fun lut(density: Int, gamma: Double = DEFAULT_GAMMA): FloatArray = synchronized(luts) {
-        luts.getOrPut("${density.coerceIn(1, 5)} $gamma") {
-            val dark = table(density)
+    fun lut(density: Int, gamma: Double = DEFAULT_GAMMA, measured: FloatArray? = null): FloatArray = synchronized(luts) {
+        luts.getOrPut("${density.coerceIn(1, 5)} $gamma ${measured?.contentHashCode()}") {
+            val dark = table(density, measured)
             val n = dark.size
             FloatArray(256) { v ->
                 val target = (1 - (v / 255.0).pow(gamma)).toFloat()

@@ -63,6 +63,7 @@ moiré there that does not appear on paper.
 | TV scanlines   | The picture sits in bands of dot rows with a white gap: 4 + 2 rows, or 6 + 4 rows for *wide*. Dot spread closes about one row of the gap, so the wide version is the one that shows on small labels. |
 | Macintosh      | Atkinson dithering at 72 dpi, one screen pixel = 4 × 4 printer dots          |
 | Amiga          | 4 × 4 Bayer ordered dither on 2 × 2 dot cells, the familiar cross-hatch      |
+| Amiga fine     | 8 × 8 Bayer on single dots: the same cross-hatch at twice the resolution and 65 instead of 17 tones, with the measured tone correction of the photo look |
 | Fax            | 150 × 100 dpi cells, close to fax standard resolution, with Floyd–Steinberg diffusion |
 | Text/logo      | Hard threshold, for line art and logos                                       |
 
@@ -76,9 +77,10 @@ The other looks are black-and-white patterns by nature and always print in 1-bit
 
 The B21 Pro has a 16-level gray mode. Each dot gets one of 16 heat levels, so tones no longer depend on dot patterns and
 dot spread. The app diffuses the photo to 16 levels and spreads the tone
-target (gamma, see below) evenly over them; there is no measured correction yet. How light the
-lowest levels come out depends on the paper: on original rolls all 16 show, on a cheap roll the
-lightest seven printed white. Printing takes about four times as long as 1-bit.
+target (gamma, see below) over them by how dark each level actually prints. Levels 1–9 leave no
+mark on the rolls tried so far, at densities 3 to 5, so only white and levels 10–15 are used; light
+tones become sparse dots of level 10. Without a paper profile the levels measured on an original roll
+apply (`PrintCurve.GRAY`), with one the paper's own (see *Paper profile*). Printing takes about four times as long as 1-bit.
 
 ### Tone correction (1-bit)
 
@@ -105,8 +107,10 @@ corrected.
 - **Raster**: the look, see above.
 - **Brightness / Contrast**: applied after an automatic levels step that stretches the photo to
   full range. Only the brightest 0.1 % may clip to white, so light grey stays distinguishable from
-  paper white. Both are curves that keep black and white in place: brightness bends the mid-tones,
-  contrast is an S-curve around mid-grey.
+  paper white. Both are curves: brightness bends the mid-tones, contrast is an S-curve around
+  mid-grey. Raising either also clips the lightest tones to paper white (up to 15 % of the range),
+  so an off-white background can be made to print white; lowering brightness clips the darkest
+  tones to black.
 - **Invert**: swap black and white.
 - **Soft edge**: fade to white over the outer eighth of the photo area. The fade is applied after
   the tone curve, so it does not change the brightness of the rest of the photo.
@@ -117,13 +121,41 @@ corrected.
   thermal look, and faster). Raster looks other than *Photo*, signs and the calibration chart are
   always 1-bit.
 - **Paper type**: how the printer finds the next label (gap, black mark, continuous, transparent).
-- **Black + red roll**: for two-colour rolls. Prints 1-bit; every dot is either red or black.
+- **Paper profile**: tone curves measured on a roll type in the app (see *Calibration*). *Standard*
+  uses the built-in defaults. A profile saved while a roll with an RFID tag was in the printer is
+  selected again whenever a roll with the same barcode is found on connecting; rolls without a tag
+  are picked by hand.
+- **Black + red roll**: for two-colour rolls. Set on connecting when the roll's RFID tag shows a
+  two-colour roll (known barcodes, or the setting last used with that roll): printed in the
+  black-only modes, a two-colour roll comes out a faint red. Prints 1-bit; every dot is either red or black.
   *Red tones* selects a band of image tones (0 % = black, 100 % = white) that prints red, the rest
   prints black, a bit like split toning. The band edges blend softly. The colour is decided on a
   slightly blurred image and blended in 2 × 2-dot cells, because a red dot next to a black one turns
   black (the heat spreads) and fine red/black mixtures print as a muddy brown. Signs print black.
 
 ![Soft edge](docs/soft-edge.png)
+
+### Calibration
+
+*Paper profile → Calibrate…* measures the current print mode at the current density on the loaded
+paper, without a computer:
+
+1. *Print chart*: corner squares, patches with white gutters between them (16 gray levels in *Fine*,
+   25 tones in *Coarse*, dithered with the selected look: the photo dither or *Amiga fine*) and the
+   settings as text. Needs a plain label of at least
+   30 × 30 mm.
+2. *Take photo* (or *Choose photo*): the whole label in even, indirect light. The app finds the
+   corner squares, maps the chart into the photo in any orientation, and measures each patch
+   against the white gutter around it, so uneven light across the label cancels out.
+3. Check the outlined patches on the rectified chart and the measured curve, name the profile and
+   save. The curve belongs to that mode, look and density; other densities keep the defaults until
+   they are measured too. Below the profile field the app shows whether the current settings have a
+   measured curve. *Amiga fine* without its own curve uses the photo curve.
+
+Gray uses the measured levels when diffusing (levels that print alike are simply skipped), 1-bit
+uses the measured table in place of the built-in one, and the preview follows both. Phone photos
+crush the darkest tones, so the shadow end is less reliable than the rest. Red/black rolls cannot be
+calibrated yet.
 
 Signs use the same label and print settings:
 
@@ -134,7 +166,7 @@ Signs use the same label and print settings:
 - Android 9 or newer with Bluetooth LE
 - A NIIMBOT B21 Pro (other B21 variants may work, untested)
 
-The app does not check the roll's RFID tag. On stock firmware, rolls without a valid NIIMBOT tag
+The app does not check the roll's RFID tag; it only reads the barcode to pick a paper profile. On stock firmware, rolls without a valid NIIMBOT tag
 still print very faint, because the printer firmware itself lowers the heat; the app cannot change
 that. With a patched printer firmware they print normally.
 
@@ -201,6 +233,8 @@ the BLE characteristic and shows every reply. It also offers:
 - **Calibration**: a 5 × 5 chart of flat tones, already dithered and printed dot for dot without
   any image processing, with the density printed on it. It measures the 1-bit mode. `tools/calib.py` reads a photo of
   it and reports how dark each patch printed; those numbers are the tables in `PrintCurve.kt`.
+  For a paper profile use *Calibration* in the paper profile dialog instead, which does the same
+  in the app.
 - **Tone gamma**: the tone target for photos, darkness = 1 − tone^gamma (1.0 = linear, the
   default), for both print modes. Remembered.
 - **Tone sweep**: prints the current photo in four vertical stripes with different tone targets
@@ -230,7 +264,8 @@ the BLE characteristic and shows every reply. It also offers:
   13-byte page size, no page start). The app falls back to older sequences if the printer rejects
   it and remembers what worked.
 - 300 dpi, 591-dot print head (50 mm). Rows are sent as bitmap rows with per-third dot counts;
-  identical rows are merged.
+  identical rows are merged. (The manufacturer's app sends 1-bit rows only as wide as the label,
+  colour mode 2 and three counts per 24 bytes; none of that changed the print here.)
 - Gray and red/black mode (worked out from the printer's Bluetooth traffic): the colour mode
   is a byte of the print start (3 = gray, 1 = red/black), the width is 576 dots.
   - Gray rows: `55 55 8D LEN(u16) 86 row(u16) 01 N runs… data… XOR AA AA`, data 4 bits per dot
@@ -257,6 +292,8 @@ main reference.
 | `B21Printer.kt`                  | BLE connection, print sequence, firmware update                |
 | `ImageProcessor.kt`              | scaling, tone curve, dot gain, raster looks, gray levels, red band, frame and window composition |
 | `PrintCurve.kt`                  | measured tone response per density, tone correction table     |
+| `PaperProfile.kt`                | paper profiles with their measured curves, stored in the preferences |
+| `ChartReader.kt`                 | reads a photo of a calibration chart (in-app `tools/calib.py`) |
 | `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration chart |
 | `TextLabel.kt`                   | sign rendering                                                 |
 | `Labels.kt`                      | label presets                                                  |

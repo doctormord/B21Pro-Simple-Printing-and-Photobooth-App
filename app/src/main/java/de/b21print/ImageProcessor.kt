@@ -11,6 +11,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import java.util.Locale
 import kotlin.math.pow
+import kotlin.math.roundToInt
 
 object ImageProcessor {
     enum class Fit { CONTAIN, COVER, STRETCH }
@@ -537,6 +538,16 @@ object ImageProcessor {
     // spread; black and white stay put, mid-tones lose ink. 0 = off, ~0.55 = strong thermal.
     private const val DOT_GAIN = 0.55
 
+    // Brightness (−60..60) and contrast (−50..50) as a table over 0..1 → 0..255
+    private fun toneCurve(brightness: Int, contrast: Int): FloatArray {
+        val b = 2f.pow(-brightness / 60f)
+        val c = 2f.pow(contrast / 50f)
+        return FloatArray(1024) { k ->
+            val x = (k / 1023f).pow(b)
+            255f * if (x < 0.5f) 0.5f * (2f * x).pow(c) else 1f - 0.5f * (2f * (1f - x)).pow(c)
+        }
+    }
+
     // Prepare tones for thermal printing: auto contrast in the photo area, brightness/contrast,
     // gentle sharpening, and dot-gain compensation so the print matches the preview.
     // tone (optional) receives the image tone before the print correction, for the red band.
@@ -556,8 +567,10 @@ object ImageProcessor {
         var hi = pct(0.999).toFloat()
         // Do not stretch flat areas (e.g. no photo yet) to black
         if (hi - lo < 32f) { lo = 0f; hi = 255f }
-        val contrast = 1f + o.contrast / 50f * 0.8f
-        val bright = o.brightness * 1.5f
+        // Brightness and contrast as curves that keep black and white in place (as in photo editors):
+        // brightness bends the mid-tones (exponent 2^∓1 at the slider ends), contrast is an S-curve
+        // around mid-grey. A plain offset clipped whole skies to paper white within a few steps.
+        val tones = toneCurve(o.brightness, o.contrast)
         val photo = o.raster != Raster.TEXT
         // Dot gain only matters for patterns of single dots; coarse cells and thick lines print true
         val fine = o.raster == Raster.DOTS || o.raster == Raster.SCANLINES || o.raster == Raster.SCANLINES_WIDE
@@ -573,8 +586,7 @@ object ImageProcessor {
                 val blur = (src[i - 1] + src[i + 1] + src[i - w] + src[i + w] + 4 * v) / 8f
                 v += 0.4f * (v - blur)
             }
-            v = (v - lo) / (hi - lo) * 255f
-            v = (v - 128f) * contrast + 128f + bright
+            v = tones[(((v - lo) / (hi - lo)).coerceIn(0f, 1f) * (tones.size - 1)).roundToInt()]
             if (tone != null) {
                 val t = if (o.invert) 255f - v.coerceIn(0f, 255f) else v.coerceIn(0f, 255f)
                 tone[i] = if (fade != null) t * fade[i] + 255f * (1f - fade[i]) else t

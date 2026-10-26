@@ -42,6 +42,14 @@ decided on a slightly blurred image, with soft band edges blended in 2 × 2-dot 
 split toning. Black dots in light tones show a red tint on these rolls, presumably because single
 dots do not reach the heat for black.
 
+### Brightness and contrast
+Both sliders felt touchy. Brightness was an offset added to every tone, contrast a linear stretch,
+both clipping at black and white. On a photo with a large light sky, five steps of brightness pushed
+the whole sky to paper white: measured on the preview, steps −5 → 0 → +5 changed the mean tone
+three times as much as −20 → −5. In red/black mode this also moved whole areas between red and
+black. Both are now curves with fixed end points (brightness: a power curve on the mid-tones,
+contrast: an S-curve), and the preview changes evenly across the slider.
+
 ### Other
 - NB838 photo frames (54 × 84 mm, rose, silver and pink frames) as a label preset; the window was
   measured from the product diagram.

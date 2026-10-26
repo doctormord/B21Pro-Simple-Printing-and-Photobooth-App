@@ -105,7 +105,8 @@ corrected.
 - **Raster**: the look, see above.
 - **Brightness / Contrast**: applied after an automatic levels step that stretches the photo to
   full range. Only the brightest 0.1 % may clip to white, so light grey stays distinguishable from
-  paper white.
+  paper white. Both are curves that keep black and white in place: brightness bends the mid-tones,
+  contrast is an S-curve around mid-grey.
 - **Invert**: swap black and white.
 - **Soft edge**: fade to white over the outer eighth of the photo area. The fade is applied after
   the tone curve, so it does not change the brightness of the rest of the photo.

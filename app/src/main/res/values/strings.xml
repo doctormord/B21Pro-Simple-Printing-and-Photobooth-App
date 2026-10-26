@@ -51,11 +51,24 @@
     <string name="raster_mac">Macintosh (72 dpi)</string>
     <string name="raster_amiga">Amiga (Bayer)</string>
     <string name="raster_bayer">Amiga fine (Bayer)</string>
+    <string name="raster_blue">Blue noise</string>
+    <string name="raster_riemersma">Riemersma (Hilbert curve)</string>
     <string name="raster_fax">Fax</string>
     <string name="brightness">Brightness</string>
     <string name="contrast">Contrast</string>
     <string name="reset">Reset</string>
     <string name="invert">Invert</string>
+    <!-- Depth split (portrait photos with a depth map) -->
+    <string name="background">Background</string>
+    <string name="depth_cut">Subject reaches to</string>
+    <string name="bg_strength">Strength</string>
+    <string name="bg_raster">Background raster</string>
+    <string name="bg_same">Same as subject</string>
+    <string name="bg_lighter">Lighter</string>
+    <string name="bg_darker">Darker</string>
+    <string name="bg_look">Other raster</string>
+    <string name="bg_red">Red</string>
+    <string name="bg_subject_red">Black, subject red</string>
     <string name="speed">Print mode</string>
     <string name="speed_fine">Fine</string>
     <string name="speed_fast">Coarse</string>
@@ -188,8 +201,13 @@
     <string name="roll_two_color">Roll %s: black + red</string>
     <string name="roll_black">Roll %s: black only</string>
     <string name="cal_no_red">Red/black rolls cannot be calibrated yet.</string>
-    <string name="cal_no_look">Only the photo look and Amiga fine can be calibrated.</string>
+    <string name="cal_no_look">Only Photo, Amiga fine, blue noise and Riemersma can be calibrated.</string>
     <string name="cal_status_own">%s: measured</string>
     <string name="cal_status_default">%s: not calibrated, built-in curve</string>
     <string name="cal_status_photo">%s: not calibrated, uses the photo curve</string>
+    <string name="cal_status_none">%s: not calibrated, no tone correction</string>
+    <string name="offsets">Fine-tune position (%1$+.1f / %2$+.1f mm)</string>
+    <string name="fav_add">Save as favourite</string>
+    <string name="fav_saved">Favourite: %s</string>
+    <string name="fav_delete">Delete the favourite “%s”?</string>
 </resources>

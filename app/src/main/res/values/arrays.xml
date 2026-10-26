@@ -16,6 +16,8 @@
         <item>@string/raster_mac</item>
         <item>@string/raster_amiga</item>
         <item>@string/raster_bayer</item>
+        <item>@string/raster_blue</item>
+        <item>@string/raster_riemersma</item>
         <item>@string/raster_fax</item>
         <item>@string/raster_text</item>
     </string-array>

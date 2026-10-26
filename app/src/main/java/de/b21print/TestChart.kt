@@ -91,14 +91,14 @@ object TestChart {
 
     // Calibration chart at print resolution (1 px = 1 dot), already dithered, so it reaches the
     // printer unchanged when printed with the hard-threshold raster: 5 × 5 patches of the tones
-    // 255 · (1 − i / 24) and the print settings as text. bayer: patches in the Amiga fine pattern
-    // instead of the photo dither, so the curve fits that look.
-    fun calibration(w: Int, h: Int, caption: String, bayer: Boolean = false): Bitmap {
+    // 255 · (1 − i / 24) and the print settings as text. look: whose dither fills the patches (the
+    // photo look, Amiga fine, blue noise, Riemersma), so the curve fits that look.
+    fun calibration(w: Int, h: Int, caption: String, look: ImageProcessor.Raster = ImageProcessor.Raster.PHOTO): Bitmap {
         val px = IntArray(w * h) { -1 }
         val lay = calLayout(w, h, 5)
         for (b in lay.corners) for (y in b.y until b.y + b.h) for (x in b.x until b.x + b.w) px[y * w + x] = BLACK
         for ((i, b) in lay.patches.withIndex()) {
-            val bits = ImageProcessor.ditherFlat(255f * (1f - i / (CAL_STEPS - 1f)), b.w, b.h, bayer, b.x, b.y)
+            val bits = ImageProcessor.ditherFlat(255f * (1f - i / (CAL_STEPS - 1f)), b.w, b.h, look, b.x, b.y)
             for (y in 0 until b.h) for (x in 0 until b.w) if (bits[y * b.w + x].toInt() != 0) px[(b.y + y) * w + b.x + x] = BLACK
         }
         val bits = ByteArray(w * h)

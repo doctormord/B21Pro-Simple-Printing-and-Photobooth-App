@@ -13,8 +13,12 @@ for tablets.
 
 **Photos**
 - Camera, gallery, or *Share* from any other app; crop to the label shape or freely
-- 16-level gray printing (*Fine*) or 1-bit dithering (*Coarse*), nine raster looks (see below),
-  brightness, contrast, invert
+- 16-level gray printing (*Fine*) or 1-bit dithering (*Coarse*), twelve raster looks (see below),
+  brightness, contrast, invert, favourites
+- Paper profiles: tone curves measured in the app from a photo of a printed chart, picked
+  automatically by the roll's RFID tag
+- Portrait photos from Samsung phones: the depth map splits subject and background; the background
+  can print lighter, darker, in another raster or red
 - Red and black on two-colour rolls: a band of image tones, set with a slider, prints red
 - Soft edge: the photo fades to white towards its border, round on circle labels
 - Instant frame with an optional caption, printed by the app on plain labels
@@ -62,7 +66,9 @@ moiré there that does not appear on paper.
 | Line screen    | Horizontal lines, 0.6 mm apart; the line thickness carries the tone (engraving style) |
 | TV scanlines   | The picture sits in bands of dot rows with a white gap: 4 + 2 rows, or 6 + 4 rows for *wide*. Dot spread closes about one row of the gap, so the wide version is the one that shows on small labels. |
 | Macintosh      | Atkinson dithering at 72 dpi, one screen pixel = 4 × 4 printer dots          |
-| Amiga          | 4 × 4 Bayer ordered dither on 2 × 2 dot cells, the familiar cross-hatch      |
+| Amiga          | 4 × 4 Bayer ordered dither on 2 × 2 dot cells, the familiar cross-hatch. Tone-corrected only once calibrated |
+| Blue noise     | A 64 × 64 blue-noise threshold map (void-and-cluster): like Bayer, every tone has one fixed pattern, but without a visible grid. Calibratable like Amiga fine |
+| Riemersma      | Error diffusion along a Hilbert curve (last 32 dots, exponential weights): organic texture without rows |
 | Amiga fine     | 8 × 8 Bayer on single dots: the same cross-hatch at twice the resolution and 65 instead of 17 tones, with the measured tone correction of the photo look |
 | Fax            | 150 × 100 dpi cells, close to fax standard resolution, with Floyd–Steinberg diffusion |
 | Text/logo      | Hard threshold, for line art and logos                                       |
@@ -94,8 +100,8 @@ from a tone-sweep print, darker targets closer to the screen's sRGB curve looked
 thermal paper.
 
 Halftone dots and TV scanlines still use a simple dot-gain formula. Line screen, Macintosh, Amiga
-and fax are built from thick lines or blocks of dots, print close to their nominal tone and are not
-corrected.
+and fax are built from thick lines or blocks of dots and are not corrected. *Amiga* can be
+calibrated (see *Calibration*); with a measured curve it is corrected like the photo look.
 
 ## Settings
 
@@ -105,7 +111,9 @@ corrected.
 </p>
 
 - **Raster**: the look, see above.
-- **Brightness / Contrast**: applied after an automatic levels step that stretches the photo to
+- **Favourites**: chips above the look. *Save as favourite* stores look, print mode, density,
+  brightness and contrast; tapping a chip applies it, a long press deletes it.
+- **Brightness / Contrast** (current value next to the name): applied after an automatic levels step that stretches the photo to
   full range. Only the brightest 0.1 % may clip to white, so light grey stays distinguishable from
   paper white. Both are curves: brightness bends the mid-tones, contrast is an S-curve around
   mid-grey. Raising either also clips the lightest tones to paper white (up to 15 % of the range),
@@ -114,6 +122,12 @@ corrected.
 - **Invert**: swap black and white.
 - **Soft edge**: fade to white over the outer eighth of the photo area. The fade is applied after
   the tone curve, so it does not change the brightness of the rest of the photo.
+- **Background** (only for photos with a depth map, see below): splits the photo into subject and
+  background by distance. *Subject reaches to* sets the boundary (in % of the photo's depth range;
+  it starts where the depth splits best into near and far). The background can print *lighter* or
+  *darker* (with a strength), in *another raster* (e.g. subject *Amiga fine*, background *Blue
+  noise*, as in the game Return of the Obra Dinn), or on a black + red roll *red* (or black with the
+  subject red); then the depth decides the colour and *Red tones* is hidden. Works in gray mode too.
 - **Overscan** (round labels): print 2 mm instead of 0.6 mm past the rim. Memory Film has no
   overscan: its frame is thermal paper too, and print outside the window would grey it.
 - **Print density**: heat level sent to the printer. 1–2 suits photos on original rolls.
@@ -135,14 +149,23 @@ corrected.
 
 ![Soft edge](docs/soft-edge.png)
 
+### Depth map
+
+Samsung phones store a depth map in photos taken in portrait mode ("Live focus"): 8 bits per pixel
+(1024 × 768 for 4:3), appended to the JPEG in Samsung's trailer (SEF: the file ends with `SEFT`, a
+directory `SEFH` lists the blocks, the map is `DualShot_DepthMap_1`, dark = near). The app reads it
+when it loads such a photo, stretches it to the photo's depth range and turns and crops it along
+with the photo; it is laid over the label exactly like the photo. Other phones' depth formats
+(Google's Dynamic Depth) are not read.
+
 ### Calibration
 
 *Paper profile → Calibrate…* measures the current print mode at the current density on the loaded
 paper, without a computer:
 
 1. *Print chart*: corner squares, patches with white gutters between them (16 gray levels in *Fine*,
-   25 tones in *Coarse*, dithered with the selected look: the photo dither or *Amiga fine*) and the
-   settings as text. Needs a plain label of at least
+   25 tones in *Coarse*, dithered with the selected look: photo, *Amiga*, *Amiga fine*, *Blue noise*
+   or *Riemersma*) and the settings as text. Needs a plain label of at least
    30 × 30 mm.
 2. *Take photo* (or *Choose photo*): the whole label in even, indirect light. The app finds the
    corner squares, maps the chart into the photo in any orientation, and measures each patch
@@ -150,7 +173,8 @@ paper, without a computer:
 3. Check the outlined patches on the rectified chart and the measured curve, name the profile and
    save. The curve belongs to that mode, look and density; other densities keep the defaults until
    they are measured too. Below the profile field the app shows whether the current settings have a
-   measured curve. *Amiga fine* without its own curve uses the photo curve.
+   measured curve. *Amiga fine*, *Blue noise* and *Riemersma* without their own curve use the photo
+   curve; *Amiga* (2 × 2 blocks, which merge far less than single dots) stays uncorrected.
 
 Gray uses the measured levels when diffusing (levels that print alike are simply skipped), 1-bit
 uses the measured table in place of the built-in one, and the preview follows both. Phone photos
@@ -292,6 +316,7 @@ main reference.
 | `B21Printer.kt`                  | BLE connection, print sequence, firmware update                |
 | `ImageProcessor.kt`              | scaling, tone curve, dot gain, raster looks, gray levels, red band, frame and window composition |
 | `PrintCurve.kt`                  | measured tone response per density, tone correction table     |
+| `DepthMap.kt`                    | reads the depth map of Samsung portrait photos                 |
 | `PaperProfile.kt`                | paper profiles with their measured curves, stored in the preferences |
 | `ChartReader.kt`                 | reads a photo of a calibration chart (in-app `tools/calib.py`) |
 | `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration chart |

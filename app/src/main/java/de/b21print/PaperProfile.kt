@@ -7,12 +7,13 @@ import org.json.JSONObject
 // A paper (roll type) with the tone curves measured on it in the app. A roll with an RFID tag is
 // matched by its barcode when the printer connects; others are picked by hand. Without a profile
 // (or without a curve for the mode and density) the built-in defaults apply: PrintCurve for 1-bit
-// (Amiga fine falls back to the photo curve) and PrintCurve.GRAY for gray.
+// (the other calibratable looks fall back to the photo curve, coarse Amiga to none) and PrintCurve.GRAY for gray.
 class PaperProfile(
     val id: String,
     var name: String,
     var barcode: String? = null,
-    // Key: mode and density ("gray3", "mono3" for the 1-bit photo look, "bayer3" for Amiga fine).
+    // Key: mode and density ("gray3", "mono3" for the 1-bit photo look, "bayer3" Amiga fine, "blue3"
+    // blue noise, "riemersma3", "amiga3" coarse Amiga).
     // Value: darkness per chart step, 0 = paper, 1 = the darkest step (gray: levels 0..15; 1-bit: the
     // 25 tones of TestChart.calibration, dithered with that look)
     val curves: MutableMap<String, FloatArray> = mutableMapOf(),
@@ -23,6 +24,9 @@ class PaperProfile(
         const val GRAY = "gray"
         const val MONO = "mono"
         const val BAYER = "bayer"
+        const val BLUE = "blue"
+        const val RIEMERSMA = "riemersma"
+        const val AMIGA = "amiga"
 
         fun load(prefs: SharedPreferences): MutableList<PaperProfile> {
             val arr = runCatching { JSONArray(prefs.getString("profiles", "[]")) }.getOrElse { JSONArray() }

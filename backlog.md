@@ -8,8 +8,9 @@ Open items, roughly in order of priority.
   rolls); neither the rest of the row, hot neighbours nor command `0x59` change that. The
   manufacturer's app still uses levels 4–9 heavily in photos: print the same photo from both apps
   and compare the light tones.
-- **Amiga fine with its own curve.** Calibrate it (chart now uses the Bayer pattern), print the
-  photo that showed cross stripes: does the tone fit, and are there stripes?
+- **Calibrate the 1-bit looks on paper.** *Amiga*, *Amiga fine*, *Blue noise* and *Riemersma* each
+  have a chart; print and read them, then print a photo per look: does the tone fit, are there
+  stripes?
 - **Cross stripes in 1-bit photos.** Open, paused. Facts: not the transfer, the row header, the
   source photo or our row data (stripes on paper do not correlate with coverage, lone dots, pairs or
   row load of the sent rows). The manufacturer's bitmap prints clean through our sending, and in a
@@ -17,8 +18,6 @@ Open items, roughly in order of priority.
   crossing the middle. Likely a small row-wise variation in the printer that only shows in large,
   smooth mid-tone areas, which the calibrated photo look produces and the manufacturer's harder,
   darker dither does not. Debug tools: *Save print bitmap*, *Print bitmap file*.
-- **Amiga fine on paper.** Does the photo look's measured curve suit the Bayer pattern, or does it
-  need its own calibration chart?
 - **Calibrate on paper.** The in-app calibration (paper profiles) has only been checked on a
   simulated photo. Measure gray and 1-bit on an original and a cheap roll and compare with the
   `tools/calib.py` results.
@@ -31,6 +30,9 @@ Open items, roughly in order of priority.
 - Signs in red on two-colour rolls (text or frame).
 - What command `0x59` does (seen before gray prints; the printer replies with the label size in
   dots and mm).
+
+- **Depth split on paper.** Print a portrait photo with background *other raster* (Amiga fine /
+  Blue noise) and with *red*: does the seam show, does the boundary fit?
 
 ## Fixes
 

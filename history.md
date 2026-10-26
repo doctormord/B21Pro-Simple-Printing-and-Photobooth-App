@@ -77,7 +77,32 @@ paper.
 The same tag also sets the *Black + red roll* switch: a two-colour roll printed in gray or 1-bit came
 out a faint red.
 
+### More 1-bit looks
+After https://surma.dev/things/ditherpunk/: *Blue noise*, a threshold map made once with
+void-and-cluster (fixed pattern per tone like Bayer, so it calibrates as exactly, but no grid), and
+*Riemersma*, error diffusion along a Hilbert curve. Both calibratable; the calibration chart from
+the debug console now follows look, label and density instead of staying as first loaded (it was
+scaled to a new label and kept the photo dither).
+
+### Depth: subject and background
+Samsung portrait photos carry a depth map (see README, *Depth map*). Instead of a separate "depth"
+raster, the image settings get a *Background* choice that only shows for such photos: lighter,
+darker, another raster, or red on two-colour rolls. Tried on the computer first with one portrait
+(Otsu split of the depth histogram as the default boundary, a soft step of 8 % of the depth range
+at the edge). A background in another raster is the same photo prepared and dithered again with
+that raster's own tone correction; the two are mixed along the boundary with blue noise, so the
+seam has no outline. No ML libraries: the map comes from the camera.
+
 ### Other
+- Coarse *Amiga* is calibratable. Uncorrected, its preview looked muddy: the simulated dot spread
+  filled the gaps of the 4 × 4 pattern with grey, and faces came out dark. The photo curve does not
+  suit 2 × 2 blocks, so without its own curve it stays uncorrected.
+- After a theme change or rotation the depth controls disappeared while the effect stayed: the
+  photo was restored after the controls had been shown.
+- Red/black preview: mixed the inks by plain dot coverage, so tone-corrected photos (fewer dots)
+  looked grey; it now takes the darkness from the print curve like the 1-bit preview.
+- Camera and gallery are icon buttons beside the preview; the position fine-tuning folds away;
+  soft edge sits with invert; brightness and contrast show their values; image favourites.
 - *Amiga fine*: the Amiga cross-hatch on single dots (8 × 8 Bayer, 65 tones) instead of 2 × 2 cells,
   with the measured tone correction of the photo look, because single dots merge on paper.
 - Cross stripes in 1-bit photo prints that the manufacturer's app did not have. First suspected:

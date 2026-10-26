@@ -25,6 +25,12 @@ Everything else is checked in the emulator and on paper.
 - Strings exist in `values/` (English) and `values-de/` (German). Keep both in step.
 - The debug console UI is built in code with hard-coded English strings; that is intentional.
 - `tools/mkchart.py`: test chart generator; `TestChart.kt` is its Kotlin port. Keep them in sync.
+- `Dither.kt`: blue-noise map (built on first use) and Riemersma; the calibratable 1-bit looks are
+  `CAL_LOOKS` in MainActivity, each with its own profile key. `ImageProcessor.MEASURED` are the ones
+  corrected even without their own curve (photo curve); coarse Amiga only with one (`measured()`).
+- `DepthMap.kt` reads the depth map of Samsung portrait photos; `ImageStore` turns and crops it with
+  the photo, `ImageProcessor.subjectMask` lays it over the label. Options.background decides what
+  happens to the background (lighter/darker in `prepare`, another raster in `render`, red in `redMask`).
 - Paper profiles (`PaperProfile.kt`) hold measured curves per mode and density ("gray3", "mono3"),
   as JSON in the prefs. `ChartReader.kt` reads the calibration charts (`TestChart.calLayout`) from a
   photo in the app; `tools/calib.py` mirrors the 5 × 5 layout and must stay in sync with it.

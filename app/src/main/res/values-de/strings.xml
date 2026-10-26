@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="mode_photo">Foto</string>
-    <string name="mode_booth">Fotobox</string>
+    <string name="mode_booth">Box</string>
     <string name="mode_sign">Schild</string>
     <string name="connect">Verbinden</string>
     <string name="connecting">Verbinde …</string>
@@ -50,11 +50,24 @@
     <string name="raster_mac">Macintosh (72 dpi)</string>
     <string name="raster_amiga">Amiga (Bayer)</string>
     <string name="raster_bayer">Amiga fein (Bayer)</string>
+    <string name="raster_blue">Blue Noise</string>
+    <string name="raster_riemersma">Riemersma (Hilbert-Kurve)</string>
     <string name="raster_fax">Fax</string>
     <string name="brightness">Helligkeit</string>
     <string name="contrast">Kontrast</string>
     <string name="reset">Zurücksetzen</string>
     <string name="invert">Invertieren</string>
+    <!-- Depth split (portrait photos with a depth map) -->
+    <string name="background">Hintergrund</string>
+    <string name="depth_cut">Motiv reicht bis</string>
+    <string name="bg_strength">Stärke</string>
+    <string name="bg_raster">Raster Hintergrund</string>
+    <string name="bg_same">Wie Motiv</string>
+    <string name="bg_lighter">Heller</string>
+    <string name="bg_darker">Dunkler</string>
+    <string name="bg_look">Anderes Raster</string>
+    <string name="bg_red">Rot</string>
+    <string name="bg_subject_red">Schwarz, Motiv rot</string>
     <string name="speed">Druckmodus</string>
     <string name="speed_fine">Fein</string>
     <string name="speed_fast">Grob</string>
@@ -175,8 +188,13 @@
     <string name="roll_two_color">Rolle %s: Schwarz + Rot</string>
     <string name="roll_black">Rolle %s: nur Schwarz</string>
     <string name="cal_no_red">Rot-Schwarz-Rollen lassen sich noch nicht kalibrieren.</string>
-    <string name="cal_no_look">Kalibrieren lassen sich nur der Foto-Look und Amiga fein.</string>
+    <string name="cal_no_look">Kalibrieren lassen sich Foto, Amiga fein, Blue Noise und Riemersma.</string>
     <string name="cal_status_own">%s: gemessen</string>
     <string name="cal_status_default">%s: nicht kalibriert, eingebaute Kurve</string>
     <string name="cal_status_photo">%s: nicht kalibriert, nutzt die Foto-Kurve</string>
+    <string name="cal_status_none">%s: nicht kalibriert, ohne Tonkorrektur</string>
+    <string name="offsets">Position feinjustieren (%1$+.1f / %2$+.1f mm)</string>
+    <string name="fav_add">Als Favorit merken</string>
+    <string name="fav_saved">Favorit: %s</string>
+    <string name="fav_delete">Favorit „%s“ löschen?</string>
 </resources>

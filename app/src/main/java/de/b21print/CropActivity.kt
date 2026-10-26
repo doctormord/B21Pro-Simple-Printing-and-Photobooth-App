@@ -16,16 +16,32 @@ object ImageStore {
     var norm: RectF? = null
     var free = false
     var cropped: Bitmap? = null
+    // Depth map of the photo (portrait photos), at its own resolution; turned and cropped along
+    // with the photo by the same rotation and normalised crop rectangle
+    var depth: DepthMap? = null
+    var croppedDepth: Bitmap? = null
 
-    fun reset(b: Bitmap) {
+    fun reset(b: Bitmap, d: DepthMap? = null) {
         original = b; rotation = 0; norm = null; free = false; cropped = null
+        depth = d; croppedDepth = null
     }
 
-    fun rotated(): Bitmap? {
-        val b = original ?: return null
+    fun rotated(): Bitmap? = original?.let { turn(it) }
+
+    fun rotatedDepth(): Bitmap? = depth?.bitmap?.let { turn(it) }
+
+    private fun turn(b: Bitmap): Bitmap {
         if (rotation == 0) return b
         val m = Matrix().apply { postRotate(rotation.toFloat()) }
         return Bitmap.createBitmap(b, 0, 0, b.width, b.height, m, true)
+    }
+
+    fun crop(b: Bitmap, n: RectF): Bitmap {
+        val x = (n.left * b.width).toInt().coerceIn(0, b.width - 1)
+        val y = (n.top * b.height).toInt().coerceIn(0, b.height - 1)
+        val w = (n.width() * b.width).toInt().coerceIn(1, b.width - x)
+        val h = (n.height() * b.height).toInt().coerceIn(1, b.height - y)
+        return Bitmap.createBitmap(b, x, y, w, h)
     }
 }
 
@@ -63,11 +79,8 @@ class CropActivity : AppCompatActivity() {
             val b = crop.bitmap ?: return@setOnClickListener
             val n = crop.normRect()
             ImageStore.norm = n
-            val x = (n.left * b.width).toInt().coerceIn(0, b.width - 1)
-            val y = (n.top * b.height).toInt().coerceIn(0, b.height - 1)
-            val w = (n.width() * b.width).toInt().coerceIn(1, b.width - x)
-            val h = (n.height() * b.height).toInt().coerceIn(1, b.height - y)
-            ImageStore.cropped = Bitmap.createBitmap(b, x, y, w, h)
+            ImageStore.cropped = ImageStore.crop(b, n)
+            ImageStore.croppedDepth = ImageStore.rotatedDepth()?.let { ImageStore.crop(it, n) }
             setResult(RESULT_OK)
             finish()
         }

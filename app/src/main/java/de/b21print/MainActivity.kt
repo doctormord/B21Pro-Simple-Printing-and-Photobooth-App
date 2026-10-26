@@ -63,6 +63,8 @@ class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
     private var printer: B21Printer? = null
     private var source: Bitmap? = null
+    // Depth map of source (portrait photos, see DepthMap), cropped like it
+    private var depth: Bitmap? = null
     private var rendered: ImageProcessor.Result? = null
     private var renderJob: Job? = null
     private var photoUri: Uri? = null
@@ -95,7 +97,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchInvert: MaterialSwitch
     private lateinit var switchRed: MaterialSwitch
     private lateinit var sliderRed: com.google.android.material.slider.RangeSlider
+    private lateinit var sliderDepthCut: Slider
+    private lateinit var sliderBgStrength: Slider
     private var raster = ImageProcessor.Raster.PHOTO
+    private var background = ImageProcessor.Background.SAME
+    private var bgRaster = ImageProcessor.Raster.BLUE
     // The calibration chart is pre-dithered and must reach the printer unchanged
     private var calibration = false
     // Tone sweep: the photo in vertical stripes with different tone targets, to pick one on paper
@@ -140,6 +146,8 @@ class MainActivity : AppCompatActivity() {
         switchOverscan = findViewById(R.id.switchOverscan)
         switchRed = findViewById(R.id.switchRed)
         sliderRed = findViewById(R.id.sliderRed)
+        sliderDepthCut = findViewById(R.id.sliderDepthCut)
+        sliderBgStrength = findViewById(R.id.sliderBgStrength)
         switchInvert = findViewById(R.id.switchInvert)
         toggleFont = findViewById(R.id.toggleFont)
         toggleStyle = findViewById(R.id.toggleStyle)
@@ -249,8 +257,8 @@ class MainActivity : AppCompatActivity() {
         switchRed.setOnCheckedChangeListener { _, on ->
             prefs.edit().putBoolean("redRoll", on).apply()
             roll?.let { prefs.edit().putBoolean("twoColor_${it.barcode}", on).apply() }
-            redBand.visibility = if (on) View.VISIBLE else View.GONE
             toggleSpeed.isEnabled = !on
+            showDepthDetails()
             scheduleRender()
         }
         toggleSpeed.isEnabled = !switchRed.isChecked
@@ -280,15 +288,29 @@ class MainActivity : AppCompatActivity() {
         // Fine-tuning is stored per label (calibrate once)
         val txtOffX = findViewById<TextView>(R.id.txtOffsetX)
         val txtOffY = findViewById<TextView>(R.id.txtOffsetY)
+        // Folded away under one line that shows the current values
+        val btnOffsets = findViewById<MaterialButton>(R.id.btnOffsets)
+        val offsetBox = findViewById<View>(R.id.offsetBox)
+        fun showOffsets() {
+            val open = offsetBox.visibility == View.VISIBLE
+            btnOffsets.text = getString(R.string.offsets, sliderOffsetX.value, sliderOffsetY.value) + if (open) "  ▴" else "  ▾"
+        }
+        btnOffsets.setOnClickListener {
+            offsetBox.visibility = if (offsetBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            showOffsets()
+        }
         txtOffX.text = "%+.1f mm".format(0f)
         txtOffY.text = "%+.1f mm".format(0f)
+        showOffsets()
         sliderOffsetX.addOnChangeListener { _, v, fromUser ->
             txtOffX.text = "%+.1f mm".format(v)
+            showOffsets()
             if (fromUser) prefs.edit().putFloat("offX_${selectedLabel.code}", v).apply()
             scheduleRender()
         }
         sliderOffsetY.addOnChangeListener { _, v, fromUser ->
             txtOffY.text = "%+.1f mm".format(v)
+            showOffsets()
             if (fromUser) prefs.edit().putFloat("offY_${selectedLabel.code}", v).apply()
             scheduleRender()
         }
@@ -314,8 +336,14 @@ class MainActivity : AppCompatActivity() {
         }
         dropRaster.setOnClickListener(pickRaster)
         findViewById<TextInputLayout>(R.id.rasterLayout).setEndIconOnClickListener(pickRaster)
-        sliderBrightness.addOnChangeListener { _, _, _ -> scheduleRender() }
-        sliderContrast.addOnChangeListener { _, _, _ -> scheduleRender() }
+        val txtBrightness = findViewById<TextView>(R.id.txtBrightness)
+        val txtContrast = findViewById<TextView>(R.id.txtContrast)
+        txtBrightness.text = "%+d".format(sliderBrightness.value.toInt())
+        txtContrast.text = "%+d".format(sliderContrast.value.toInt())
+        sliderBrightness.addOnChangeListener { _, v, _ -> txtBrightness.text = "%+d".format(v.toInt()); scheduleRender() }
+        sliderContrast.addOnChangeListener { _, v, _ -> txtContrast.text = "%+d".format(v.toInt()); scheduleRender() }
+        buildFavorites()
+        setupDepth()
         findViewById<MaterialButton>(R.id.btnResetTone).setOnClickListener {
             sliderBrightness.value = 0f
             sliderContrast.value = 0f
@@ -327,6 +355,9 @@ class MainActivity : AppCompatActivity() {
         buildLabelList()
         selectLabel(Labels.ALL.firstOrNull { it.name == prefs.getString("label", null) } ?: Labels.NB835)
         if (prefs.getBoolean("textMode", false)) toggleApp.check(R.id.modeAppText)
+        // Printer and image survive rotation and theme changes; restored before the controls are
+        // shown, or the depth section stayed hidden while its effect was still applied
+        if (savedInstanceState != null) { source = ImageStore.cropped; depth = ImageStore.croppedDepth }
         applyModeVisibility()
 
         // Image shared from another app
@@ -340,7 +371,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         printer = Booth.printer
-        if (savedInstanceState != null) source = ImageStore.cropped
 
         if (savedInstanceState == null && intent?.action == Intent.ACTION_SEND) {
             toggleApp.check(R.id.modeAppPhoto)
@@ -387,6 +417,8 @@ class MainActivity : AppCompatActivity() {
         show(R.id.windowTuning, win)
         show(R.id.switchInstant, photo && !win && !selectedLabel.round)
         show(R.id.switchSoftEdge, photo)
+        show(R.id.depthBox, photo && depth != null)
+        showDepthDetails()
         show(R.id.switchOverscan, photo && selectedLabel.round)
         show(R.id.captionLayout, photo && !win && switchInstant.isChecked)
     }
@@ -629,8 +661,10 @@ class MainActivity : AppCompatActivity() {
             if (resultCode != RESULT_OK && source == null && ImageStore.original != null) {
                 ImageStore.free = true
                 ImageStore.cropped = ImageStore.rotated()
+                ImageStore.croppedDepth = ImageStore.rotatedDepth()
             }
             source = ImageStore.cropped
+            depth = ImageStore.croppedDepth
             applyModeVisibility()
             scheduleRender()
             return
@@ -665,9 +699,16 @@ class MainActivity : AppCompatActivity() {
     private fun loadImage(uri: Uri) {
         scope.launch {
             try {
-                source = withContext(Dispatchers.IO) { decode(uri) }
-                ImageStore.reset(source!!)
+                val (bmp, d) = withContext(Dispatchers.IO) {
+                    val b = decode(uri)
+                    b to DepthMap.read(contentResolver, uri, b.width, b.height)
+                }
+                ImageStore.reset(bmp, d)
                 source = null
+                depth = null
+                // The boundary starts where the photo's depth splits best into near and far
+                d?.let { sliderDepthCut.value = Math.round((1f - it.cut) * 100f).toFloat().coerceIn(0f, 100f) }
+                if (d != null) log("Depth map ${d.bitmap.width}×${d.bitmap.height}")
                 calibration = false
                 sweep = false
                 openCrop()
@@ -693,6 +734,7 @@ class MainActivity : AppCompatActivity() {
     private fun scheduleRender() {
         if (!::sliderOffsetY.isInitialized) return
         showCalStatus()
+        if (calibration && currentChartKey() != chartKey) { chartKey = currentChartKey(); loadTestChart(calibrate = true); return }
         renderJob?.cancel()
         renderJob = scope.launch {
             delay(120)
@@ -710,10 +752,11 @@ class MainActivity : AppCompatActivity() {
                 // A fixed crop fills the area, a free crop is fitted and centered
                 val opts = photoOptions(if (ImageStore.free) ImageProcessor.Fit.CONTAIN else ImageProcessor.Fit.COVER)
                 val src = source
+                val dep = depth
                 r = withContext(Dispatchers.Default) {
                     if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round,
                         sweepGammas().map { "%.1f".format(Locale.ROOT, it) to opts.copy(toneGamma = it) })
-                    else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round)
+                    else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round, dep)
                 }
                 rendered = if (src != null) r else null
             }
@@ -764,6 +807,11 @@ class MainActivity : AppCompatActivity() {
             redHi = sliderRed.values[1] / 100f,
             grayCurve = profile?.curve(PaperProfile.GRAY, sliderDensity.value.toInt()),
             monoCurve = monoCurve(),
+            depthCut = 1f - sliderDepthCut.value / 100f,
+            background = background(),
+            bgStrength = sliderBgStrength.value / 100f,
+            bgRaster = bgRaster,
+            bgMonoCurve = monoCurve(bgRaster),
             caption = editCaption.text?.toString().orEmpty(),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,
@@ -1227,6 +1275,155 @@ class MainActivity : AppCompatActivity() {
         dlg.show()
     }
 
+    // ---------- Favourites ----------
+
+    // An image setting to come back to: look, print mode, density, brightness, contrast
+    private data class Favorite(val raster: String, val fine: Boolean, val density: Int, val brightness: Int, val contrast: Int)
+
+    private fun loadFavorites(): MutableList<Favorite> {
+        val arr = runCatching { org.json.JSONArray(prefs.getString("favorites", "[]")) }.getOrElse { org.json.JSONArray() }
+        return MutableList(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            Favorite(o.getString("raster"), o.getBoolean("fine"), o.getInt("density"), o.getInt("brightness"), o.getInt("contrast"))
+        }
+    }
+
+    private fun saveFavorites(list: List<Favorite>) {
+        val arr = org.json.JSONArray()
+        for (f in list) arr.put(org.json.JSONObject().put("raster", f.raster).put("fine", f.fine)
+            .put("density", f.density).put("brightness", f.brightness).put("contrast", f.contrast))
+        prefs.edit().putString("favorites", arr.toString()).apply()
+    }
+
+    private fun currentFavorite() = Favorite(raster.name, prefs.getInt("speed", 1) == 1, sliderDensity.value.toInt(),
+        sliderBrightness.value.toInt(), sliderContrast.value.toInt())
+
+    // e.g. "Amiga fine · Coarse D3 · +10/−5"
+    private fun favoriteName(f: Favorite): String {
+        val look = ImageProcessor.Raster.entries.firstOrNull { it.name == f.raster } ?: ImageProcessor.Raster.PHOTO
+        val mode = getString(if (f.fine) R.string.speed_fine else R.string.speed_fast)
+        val tone = if (f.brightness == 0 && f.contrast == 0) "" else " · %+d/%+d".format(f.brightness, f.contrast)
+        return "${resources.getStringArray(R.array.raster)[look.ordinal]} · $mode D${f.density}$tone"
+    }
+
+    // Chips above the look: tap applies, long-press deletes, the last chip saves the current setting
+    // Depth split (portrait photos): where the subject ends and what happens to the background.
+    // The choice and its settings are kept; the boundary starts anew with each photo.
+    private fun setupDepth() {
+        val dropBg = findViewById<TextInputEditText>(R.id.dropBackground)
+        val dropBgRaster = findViewById<TextInputEditText>(R.id.dropBgRaster)
+        val txtCut = findViewById<TextView>(R.id.txtDepthCut)
+        val txtStrength = findViewById<TextView>(R.id.txtBgStrength)
+        val rasterNames = resources.getStringArray(R.array.raster)
+        background = ImageProcessor.Background.entries.firstOrNull { it.name == prefs.getString("background", null) }
+            ?: ImageProcessor.Background.SAME
+        bgRaster = ImageProcessor.Raster.entries.firstOrNull { it.name == prefs.getString("bgRaster", null) }
+            ?: ImageProcessor.Raster.BLUE
+        sliderBgStrength.value = prefs.getInt("bgStrength", 50).toFloat()
+        txtCut.text = "${sliderDepthCut.value.toInt()} %"
+        txtStrength.text = "${sliderBgStrength.value.toInt()} %"
+        dropBgRaster.setText(rasterNames[bgRaster.ordinal])
+        sliderDepthCut.addOnChangeListener { _, v, _ -> txtCut.text = "${v.toInt()} %"; scheduleRender() }
+        sliderBgStrength.addOnChangeListener { _, v, fromUser ->
+            txtStrength.text = "${v.toInt()} %"
+            if (fromUser) prefs.edit().putInt("bgStrength", v.toInt()).apply()
+            scheduleRender()
+        }
+        val pickBg = View.OnClickListener {
+            val choices = ImageProcessor.Background.entries.filter {
+                switchRed.isChecked || (it != ImageProcessor.Background.RED && it != ImageProcessor.Background.SUBJECT_RED)
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.background)
+                .setSingleChoiceItems(choices.map { backgroundName(it) }.toTypedArray(), choices.indexOf(background())) { d, pos ->
+                    background = choices[pos]
+                    prefs.edit().putString("background", background.name).apply()
+                    d.dismiss()
+                    showDepthDetails()
+                    scheduleRender()
+                }
+                .show()
+        }
+        dropBg.setOnClickListener(pickBg)
+        findViewById<TextInputLayout>(R.id.backgroundLayout).setEndIconOnClickListener(pickBg)
+        val pickBgRaster = View.OnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.bg_raster)
+                .setSingleChoiceItems(rasterNames, bgRaster.ordinal) { d, pos ->
+                    bgRaster = ImageProcessor.Raster.entries[pos]
+                    prefs.edit().putString("bgRaster", bgRaster.name).apply()
+                    dropBgRaster.setText(rasterNames[pos])
+                    d.dismiss()
+                    scheduleRender()
+                }
+                .show()
+        }
+        dropBgRaster.setOnClickListener(pickBgRaster)
+        findViewById<TextInputLayout>(R.id.bgRasterLayout).setEndIconOnClickListener(pickBgRaster)
+    }
+
+    private fun backgroundName(b: ImageProcessor.Background) = getString(when (b) {
+        ImageProcessor.Background.SAME -> R.string.bg_same
+        ImageProcessor.Background.LIGHTER -> R.string.bg_lighter
+        ImageProcessor.Background.DARKER -> R.string.bg_darker
+        ImageProcessor.Background.LOOK -> R.string.bg_look
+        ImageProcessor.Background.RED -> R.string.bg_red
+        ImageProcessor.Background.SUBJECT_RED -> R.string.bg_subject_red
+    })
+
+    // Boundary only with a split; strength for lighter/darker, the raster for another look
+    private fun showDepthDetails() {
+        if (!::sliderBgStrength.isInitialized) return
+        val b = background()
+        findViewById<TextInputEditText>(R.id.dropBackground).setText(backgroundName(b))
+        fun show(id: Int, on: Boolean) { findViewById<View>(id).visibility = if (on) View.VISIBLE else View.GONE }
+        show(R.id.depthCutBox, b != ImageProcessor.Background.SAME)
+        show(R.id.bgStrengthBox, b == ImageProcessor.Background.LIGHTER || b == ImageProcessor.Background.DARKER)
+        show(R.id.bgRasterLayout, b == ImageProcessor.Background.LOOK)
+        // A depth split decides the red itself; the tone band would have no effect
+        show(R.id.redBand, switchRed.isChecked &&
+            (depth == null || (b != ImageProcessor.Background.RED && b != ImageProcessor.Background.SUBJECT_RED)))
+    }
+
+    private fun buildFavorites() {
+        val group = findViewById<com.google.android.material.chip.ChipGroup>(R.id.favGroup)
+        group.removeAllViews()
+        val list = loadFavorites()
+        for (f in list) group.addView(Chip(this).apply {
+            text = favoriteName(f)
+            setOnClickListener { applyFavorite(f) }
+            setOnLongClickListener {
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setMessage(getString(R.string.fav_delete, favoriteName(f)))
+                    .setPositiveButton(R.string.profile_delete) { _, _ -> saveFavorites(list - f); buildFavorites() }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+                true
+            }
+        })
+        group.addView(Chip(this).apply {
+            text = getString(R.string.fav_add)
+            chipIcon = getDrawable(R.drawable.ic_star_outline)
+            setOnClickListener {
+                val f = currentFavorite()
+                if (f !in list) { saveFavorites(list + f); buildFavorites() }
+                toast(getString(R.string.fav_saved, favoriteName(f)))
+            }
+        })
+    }
+
+    private fun applyFavorite(f: Favorite) {
+        val look = ImageProcessor.Raster.entries.firstOrNull { it.name == f.raster } ?: return
+        raster = look
+        prefs.edit().putString("raster", look.name).apply()
+        findViewById<TextInputEditText>(R.id.dropRaster).setText(resources.getStringArray(R.array.raster)[look.ordinal])
+        if (!switchRed.isChecked) findViewById<MaterialButtonToggleGroup>(R.id.toggleSpeed).check(if (f.fine) R.id.speedFine else R.id.speedFast)
+        sliderDensity.value = f.density.toFloat().coerceIn(sliderDensity.valueFrom, sliderDensity.valueTo)
+        sliderBrightness.value = f.brightness.toFloat()
+        sliderContrast.value = f.contrast.toFloat()
+        scheduleRender()
+    }
+
     // ---------- Paper profiles and calibration ----------
 
     private fun showProfile() {
@@ -1234,29 +1431,47 @@ class MainActivity : AppCompatActivity() {
         showCalStatus()
     }
 
-    // Which curve the current settings calibrate and use: gray (16 levels), mono (1-bit photo look),
-    // bayer (Amiga fine); null for looks without a measured correction
+    // The 1-bit looks with a measured correction: profile key, look, caption on the chart
+    private val CAL_LOOKS = listOf(
+        Triple(PaperProfile.MONO, ImageProcessor.Raster.PHOTO, "CAL"),
+        Triple(PaperProfile.BAYER, ImageProcessor.Raster.BAYER, "CAL AMIGA F"),
+        Triple(PaperProfile.BLUE, ImageProcessor.Raster.BLUE, "CAL NOISE"),
+        Triple(PaperProfile.RIEMERSMA, ImageProcessor.Raster.RIEMERSMA, "CAL RIEMERSMA"),
+        Triple(PaperProfile.AMIGA, ImageProcessor.Raster.AMIGA, "CAL AMIGA"),
+    )
+
+    // Which curve the current settings calibrate and use: gray (16 levels) or one of CAL_LOOKS;
+    // null for looks without a measured correction
     private fun calMode(): String? = when {
         switchRed.isChecked -> null
         raster == ImageProcessor.Raster.PHOTO && prefs.getInt("speed", 1) == 1 -> PaperProfile.GRAY
-        raster == ImageProcessor.Raster.PHOTO -> PaperProfile.MONO
-        raster == ImageProcessor.Raster.BAYER -> PaperProfile.BAYER
-        else -> null
+        else -> CAL_LOOKS.firstOrNull { it.second == raster }?.first
     }
 
-    private fun modeName(mode: String) = getString(when (mode) {
-        PaperProfile.GRAY -> R.string.cal_mode_gray
-        PaperProfile.BAYER -> R.string.raster_bayer
-        else -> R.string.cal_mode_mono
-    })
+    private fun lookOf(mode: String) = CAL_LOOKS.firstOrNull { it.first == mode }?.second ?: ImageProcessor.Raster.PHOTO
 
-    // Amiga fine without its own curve uses the photo look's (the profile's, else built-in)
-    private fun monoCurve(): FloatArray? {
+    private fun modeName(mode: String) = when (mode) {
+        PaperProfile.GRAY -> getString(R.string.cal_mode_gray)
+        PaperProfile.MONO -> getString(R.string.cal_mode_mono)
+        else -> resources.getStringArray(R.array.raster)[lookOf(mode).ordinal]
+    }
+
+    // A look without its own curve uses the photo look's (the profile's, else built-in); coarse
+    // Amiga none (see ImageProcessor.measured)
+    private fun monoCurve(): FloatArray? = monoCurve(raster)
+
+    // Also for the background look of a depth split
+    private fun monoCurve(look: ImageProcessor.Raster): FloatArray? {
         val d = sliderDensity.value.toInt()
         val p = profile ?: return null
-        return (if (raster == ImageProcessor.Raster.BAYER) p.curve(PaperProfile.BAYER, d) else null)
-            ?: p.curve(PaperProfile.MONO, d)
+        val own = CAL_LOOKS.firstOrNull { it.second == look }?.let { p.curve(it.first, d) }
+        return own ?: if (look == ImageProcessor.Raster.AMIGA) null else p.curve(PaperProfile.MONO, d)
     }
+
+    // The red choices only apply on a two-colour roll
+    private fun background() = background.takeIf {
+        switchRed.isChecked || (it != ImageProcessor.Background.RED && it != ImageProcessor.Background.SUBJECT_RED)
+    } ?: ImageProcessor.Background.SAME
 
     // Under the profile field: whether the current mode and density have a measured curve
     private fun showCalStatus() {
@@ -1267,7 +1482,8 @@ class MainActivity : AppCompatActivity() {
         val name = "${modeName(mode)} D$d"
         layout.helperText = when {
             profile?.curve(mode, d) != null -> getString(R.string.cal_status_own, name)
-            mode == PaperProfile.BAYER -> getString(R.string.cal_status_photo, name)
+            mode == PaperProfile.AMIGA -> getString(R.string.cal_status_none, name)
+            mode != PaperProfile.GRAY && mode != PaperProfile.MONO -> getString(R.string.cal_status_photo, name)
             else -> getString(R.string.cal_status_default, name)
         }
     }
@@ -1432,7 +1648,8 @@ class MainActivity : AppCompatActivity() {
     private fun printCalibration(mode: String, w: Int, h: Int, density: Int) {
         val p = printer ?: return
         val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
-        val bayer = mode == PaperProfile.BAYER
+        val look = lookOf(mode)
+        val caption = (CAL_LOOKS.firstOrNull { it.first == mode }?.third ?: "CAL") + " D$density"
         printJob { onProgress ->
             log("Calibration chart ${w}×$h, $mode, density $density …")
             if (mode == PaperProfile.GRAY) {
@@ -1442,7 +1659,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 val bits = withContext(Dispatchers.Default) {
                     val px = IntArray(w * h)
-                    TestChart.calibration(w, h, if (bayer) "CAL AMIGA F D$density" else "CAL D$density", bayer)
+                    TestChart.calibration(w, h, caption, look)
                         .getPixels(px, 0, w, 0, 0, w, h)
                     ByteArray(w * h) { if (px[it] and 0xFFFFFF == 0) 1 else 0 }
                 }
@@ -1451,34 +1668,47 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Test chart sized to the area the photo goes into, loaded like a cropped photo
-    private fun loadTestChart(calibrate: Boolean = false) {
+    // The area the photo goes into, in print dots
+    private fun photoAreaPx(): Pair<Int, Int> {
         val l = selectedLabel
         val (wmm, hmm) = labelSizeMm()
-        val w: Int
-        val h: Int
         val win = l.window
-        when {
-            win != null -> { w = ImageProcessor.mmToPx(win.w); h = ImageProcessor.mmToPx(win.h) }
-            l.round -> { w = ImageProcessor.mmToPx(wmm); h = w }
-            switchInstant.isChecked -> {
-                val r = ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, 50.0)), ImageProcessor.mmToPx(hmm))
-                w = r.width(); h = r.height()
-            }
-            else -> { w = ImageProcessor.mmToPx(minOf(wmm, 50.0)); h = ImageProcessor.mmToPx(hmm) }
+        return when {
+            win != null -> ImageProcessor.mmToPx(win.w) to ImageProcessor.mmToPx(win.h)
+            l.round -> ImageProcessor.mmToPx(wmm).let { it to it }
+            switchInstant.isChecked -> ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, 50.0)), ImageProcessor.mmToPx(hmm))
+                .let { it.width() to it.height() }
+            else -> ImageProcessor.mmToPx(minOf(wmm, 50.0)) to ImageProcessor.mmToPx(hmm)
         }
+    }
+
+    // What the loaded calibration chart was made for. It is pre-dithered at print resolution, so it
+    // must be rebuilt (not scaled) when the label, look or density changes.
+    private var chartKey = ""
+    private fun currentChartKey() = "${photoAreaPx()} ${calMode()} ${sliderDensity.value.toInt()}"
+
+    // Test chart sized to the area the photo goes into, loaded like a cropped photo. The calibration
+    // chart is dithered with the current look (photo, Amiga fine, blue noise, Riemersma).
+    private fun loadTestChart(calibrate: Boolean = false) {
+        val l = selectedLabel
+        val (w, h) = photoAreaPx()
+        val mode = calMode()?.takeIf { it != PaperProfile.GRAY } ?: PaperProfile.MONO
+        val key = currentChartKey()
         scope.launch {
             val density = sliderDensity.value.toInt()
+            val caption = (CAL_LOOKS.firstOrNull { it.first == mode }?.third ?: "CAL") + " D$density"
             // The calibration chart is made at print resolution, so it is drawn 1:1
             val chart = withContext(Dispatchers.Default) {
-                if (calibrate) TestChart.calibration(w, h, "CAL D$density") else TestChart.create(w, h, l.round)
+                if (calibrate) TestChart.calibration(w, h, caption, lookOf(mode)) else TestChart.create(w, h, l.round)
             }
+            chartKey = key
             calibration = calibrate
             sweep = false
             findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode).check(R.id.modeAppPhoto)
             ImageStore.reset(chart)
             ImageStore.cropped = chart
             source = chart
+            depth = null
             applyModeVisibility()
             scheduleRender()
             log((if (calibrate) "Calibration chart" else "Test chart") + " ${w}×${h} px (${l.title(this@MainActivity)})")

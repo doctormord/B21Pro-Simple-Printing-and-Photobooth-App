@@ -14,10 +14,11 @@ for tablets.
 **Photos**
 - Camera, gallery, or *Share* from any other app; crop to the label shape or freely
 - 16-level gray printing (*Fine*) or 1-bit dithering (*Coarse*), twelve raster looks (see below),
-  brightness, contrast, invert, favourites. Gray prints on plain standard labels too (with a printer firmware
-  without the RFID roll check), which the manufacturer's app does not offer at all, not even on
-  NIIMBOT's own RFID labels. Gray gets much
-  better with a patched printer firmware (see *Gray mode*); the app works with the original firmware too
+  brightness, contrast, invert, favourites
+- Gray on plain standard labels, which the manufacturer's app does not offer at all, not even on
+  NIIMBOT's own RFID labels (needs a printer firmware without the RFID roll check). Gray gets much
+  better with a patched printer firmware (see *Gray mode*); the app works with the original
+  firmware too
 - Paper profiles: tone curves measured in the app from a photo of a printed chart, picked
   automatically by the roll's RFID tag
 - Portrait photos from Samsung phones: the depth map splits subject and background; the background

@@ -7,15 +7,15 @@ import android.graphics.Paint
 import kotlin.math.abs
 import kotlin.math.pow
 
-// Reads a photo of a calibration chart (TestChart.calLayout), in the app instead of tools/calib.py:
+// Reads a photo of a calibration chart (TestChart.calChart), in the app instead of tools/calib.py:
 // finds the four corner squares, maps the chart into the photo, and measures how dark each patch
-// printed (0 = paper, 1 = the last patch, linear light), relative to the white gutter around it, so
-// uneven light across the label cancels out.
+// printed (0 = paper, 1 = the last patch, linear light), relative to the white gutter around it (for
+// bands: the white left and right of it), so uneven light across the label cancels out.
 object ChartReader {
     class Reading(val dark: FloatArray, val rectified: Bitmap)
 
-    // photo: the whole label in view; w × h, n: the chart as printed
-    fun read(photo: Bitmap, w: Int, h: Int, n: Int): Reading? {
+    // photo: the whole label in view; w × h, lay: the chart as printed
+    fun read(photo: Bitmap, w: Int, h: Int, lay: TestChart.CalLayout): Reading? {
         val pw = photo.width; val ph = photo.height
         val px = IntArray(pw * ph)
         photo.getPixels(px, 0, pw, 0, 0, pw, ph)
@@ -24,7 +24,6 @@ object ChartReader {
             0.2126f * LIN[(c shr 16) and 255] + 0.7152f * LIN[(c shr 8) and 255] + 0.0722f * LIN[c and 255]
         }
         val img = Img(lin, pw, ph)
-        val lay = TestChart.calLayout(w, h, n)
         // Chart corners in cyclic order TL, TR, BR, BL
         val chart = listOf(0, 1, 3, 2).map { val b = lay.corners[it]; (b.x + b.w / 2f) to (b.y + b.h / 2f) }
 
@@ -173,9 +172,13 @@ object ChartReader {
         return at((hm[0] * x + hm[1] * y + hm[2]) / z, (hm[3] * x + hm[4] * y + hm[5]) / z)
     }
 
+    // The part of a patch that is measured, as fractions of its width and height: away from the edges,
+    // where the heat spreads into the white
+    private fun inner(lay: TestChart.CalLayout) = if (lay.bands) floatArrayOf(0.05f, 0.95f, 0.3f, 0.7f) else floatArrayOf(0.2f, 0.8f, 0.2f, 0.8f)
+
     // Per patch: mean of its inner part and median of the gutter centre lines around it
     private fun measure(img: Img, hm: FloatArray, lay: TestChart.CalLayout, k: Int): List<Pair<Float, Float>> =
-        lay.patches.map { b ->
+        if (lay.bands) measureBands(img, hm, lay, k) else lay.patches.map { b ->
             var sum = 0f
             for (j in 0 until k) for (i in 0 until k) {
                 sum += img.chart(hm, b.x + b.w * (0.2f + 0.6f * (i + 0.5f) / k), b.y + b.h * (0.2f + 0.6f * (j + 0.5f) / k))
@@ -190,6 +193,27 @@ object ChartReader {
             ring.sort()
             sum / (k * k) to ring[ring.size / 2]
         }
+
+    // Per band: mean of its inner part; white: the mean of the medians left and right of it, so a light
+    // falling off across the label is taken at the band's middle
+    private fun measureBands(img: Img, hm: FloatArray, lay: TestChart.CalLayout, k: Int): List<Pair<Float, Float>> {
+        val (x0, x1, y0, y1) = inner(lay).toList()
+        val rows = maxOf(2, k / 4)
+        return lay.patches.map { b ->
+            var sum = 0f
+            for (j in 0 until rows) for (i in 0 until 4 * k) {
+                sum += img.chart(hm, b.x + b.w * (x0 + (x1 - x0) * (i + 0.5f) / (4 * k)), b.y + b.h * (y0 + (y1 - y0) * (j + 0.5f) / rows))
+            }
+            val strip = (b.x - lay.gut - lay.margin).toFloat()
+            fun white(xa: Float): Float {
+                val v = ArrayList<Float>()
+                for (j in 0 until rows) for (i in 0 until k) v += img.chart(hm, xa + strip * (0.2f + 0.6f * (i + 0.5f) / k), b.y + b.h * (y0 + (y1 - y0) * (j + 0.5f) / rows))
+                v.sort()
+                return v[v.size / 2]
+            }
+            sum / (rows * 4 * k) to (white(lay.margin.toFloat()) + white((b.x + b.w + lay.gut).toFloat())) / 2
+        }
+    }
 
     // Patches must get darker along the index and the gutters must be lighter than the patches
     private fun score(res: List<Pair<Float, Float>>): Float {
@@ -214,8 +238,9 @@ object ChartReader {
         val bmp = Bitmap.createBitmap(out, bw, bh, Bitmap.Config.ARGB_8888).copy(Bitmap.Config.ARGB_8888, true)
         val paint = Paint().apply { style = Paint.Style.STROKE; color = Color.rgb(230, 40, 40); strokeWidth = 1.5f }
         val c = Canvas(bmp)
+        val (x0, x1, y0, y1) = inner(lay).toList()
         for (b in lay.patches) {
-            c.drawRect((b.x + 0.2f * b.w) / s, (b.y + 0.2f * b.h) / s, (b.x + 0.8f * b.w) / s, (b.y + 0.8f * b.h) / s, paint)
+            c.drawRect((b.x + x0 * b.w) / s, (b.y + y0 * b.h) / s, (b.x + x1 * b.w) / s, (b.y + y1 * b.h) / s, paint)
         }
         return bmp
     }

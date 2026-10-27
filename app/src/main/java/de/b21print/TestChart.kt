@@ -72,8 +72,9 @@ object TestChart {
     class Box(val x: Int, val y: Int, val w: Int, val h: Int)
 
     // Layout of the calibration charts: four solid corner squares for locating the chart in a photo,
-    // n × n patches (row by row) with white gutters around each as a local paper-white reference
-    class CalLayout(val corners: List<Box>, val patches: List<Box>, val gut: Int, val margin: Int)
+    // n × n patches (row by row) with white gutters around each as a local paper-white reference.
+    // bands: the patches are full-width bands, and the paper white is read left and right of each.
+    class CalLayout(val corners: List<Box>, val patches: List<Box>, val gut: Int, val margin: Int, val bands: Boolean = false)
 
     fun calLayout(w: Int, h: Int, n: Int): CalLayout {
         val mm = 591 / 50f
@@ -88,6 +89,22 @@ object TestChart {
         val patches = List(n * n) { i -> Box(left + (i % n) * (cw + gut), top + (i / n) * (ch + gut), cw, ch) }
         return CalLayout(corners, patches, gut, m)
     }
+
+    // Gray chart: one band per level across the whole width. A patch grid misreads the levels: the
+    // right side of the head prints darker, so the last patch of each row came out a step too dark.
+    // A band averages over the head, and every level is measured with the same load (all planes up to
+    // its level fully used).
+    fun grayLayout(w: Int, h: Int): CalLayout {
+        val grid = calLayout(w, h, 4)
+        val top = grid.margin + grid.corners[0].h + grid.gut
+        val left = grid.patches[0].x
+        val gap = 3
+        val bh = (h - 2 * top - 15 * gap) / 16
+        val bands = List(16) { i -> Box(left, top + i * (bh + gap), w - 2 * left, bh) }
+        return CalLayout(grid.corners, bands, grid.gut, grid.margin, bands = true)
+    }
+
+    fun calChart(w: Int, h: Int, gray: Boolean) = if (gray) grayLayout(w, h) else calLayout(w, h, 5)
 
     // Calibration chart at print resolution (1 px = 1 dot), already dithered, so it reaches the
     // printer unchanged when printed with the hard-threshold raster: 5 × 5 patches of the tones
@@ -107,10 +124,10 @@ object TestChart {
         return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
     }
 
-    // Gray-mode calibration chart, levels 0 = white .. 15 = black: 4 × 4 patches of the levels 0..15
+    // Gray-mode calibration chart, levels 0 = white .. 15 = black: a band per level (grayLayout)
     fun grayCalibration(w: Int, h: Int, caption: String): ByteArray {
         val px = ByteArray(w * h)
-        val lay = calLayout(w, h, 4)
+        val lay = grayLayout(w, h)
         for (b in lay.corners) for (y in b.y until b.y + b.h) for (x in b.x until b.x + b.w) px[y * w + x] = 15
         for ((i, b) in lay.patches.withIndex()) for (y in b.y until b.y + b.h) px.fill(i.toByte(), y * w + b.x, y * w + b.x + b.w)
         calCaption(px, w, h, lay, caption, 15)
@@ -154,6 +171,39 @@ object TestChart {
             val ramp = FloatArray((x1 - x0) * bh) { 15f * (it % (x1 - x0)) / (x1 - x0 - 1) }
             val q = diffuse(ramp, x1 - x0, bh, levels)
             for (y in 0 until bh) System.arraycopy(q, y * (x1 - x0), px, (y0 + y) * w + x0, x1 - x0)
+        }
+        return px
+    }
+
+    // Load test for the gray mode: many dots heating at once pull the supply down, and the printer
+    // makes up for it with a longer pulse per level plane; when that is too little, a tone prints
+    // lighter where much of the row shares its levels. For a light, a mid and a dark level three rows
+    // each: a patch on the left alone, with the same level running on over half the width, and over
+    // the whole width. With a right compensation the three patches of a level match.
+    val LOAD_LEVELS = intArrayOf(4, 7, 10)
+
+    fun grayLoad(h: Int, caption: String): ByteArray {
+        val w = Niimbot.COLOR_HEAD
+        val px = ByteArray(w * h)
+        val m = 24
+        // The head is wider than a 40 mm label, which sits in its middle: start the patches on the label
+        val lm = 64
+        stamp(px, w, h, lm, m, caption, w, 15)
+        val top = m + 40; val gap = 8; val group = 24
+        val rows = 3 * LOAD_LEVELS.size
+        val rh = (h - top - m - (rows - LOAD_LEVELS.size) * gap - (LOAD_LEVELS.size - 1) * group) / rows
+        val patch = (w - 2 * m) / 4
+        var y = top
+        for ((g, level) in LOAD_LEVELS.withIndex()) {
+            if (g > 0) y += group - gap
+            for (run in 0..2) {
+                val end = when (run) { 0 -> lm + patch; 1 -> w / 2 + patch / 2; else -> w - m }
+                for (yy in y until y + rh) {
+                    for (x in lm until lm + patch) px[yy * w + x] = level.toByte()
+                    for (x in lm + patch + 12 until end) px[yy * w + x] = level.toByte()
+                }
+                y += rh + gap
+            }
         }
         return px
     }

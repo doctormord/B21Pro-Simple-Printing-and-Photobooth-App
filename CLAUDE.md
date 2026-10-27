@@ -32,8 +32,9 @@ Everything else is checked in the emulator and on paper.
   the photo, `ImageProcessor.subjectMask` lays it over the label. Options.background decides what
   happens to the background (lighter/darker in `prepare`, another raster in `render`, red in `redMask`).
 - Paper profiles (`PaperProfile.kt`) hold measured curves per mode and density ("gray3", "mono3"),
-  as JSON in the prefs. `ChartReader.kt` reads the calibration charts (`TestChart.calLayout`) from a
-  photo in the app; `tools/calib.py` mirrors the 5 × 5 layout and must stay in sync with it.
+  as JSON in the prefs. `ChartReader.kt` reads the calibration charts (`TestChart.calChart`: a patch
+  grid, gray as full-width bands) from a photo in the app; `tools/calib.py` mirrors the 5 × 5 layout
+  and must stay in sync with it.
 
 ## Image pipeline (ImageProcessor.render)
 
@@ -53,6 +54,8 @@ Everything else is checked in the emulator and on paper.
 a 576-dot width and block-wise flow control on the status reply; see the protocol notes in README.md.
 
 Things that look like bugs but are deliberate:
+- The gray calibration chart is full-width bands, not a grid: the right side of the head prints
+  darker, and the levels' heat depends on how many dots share the row (see history.md, 1.4.1).
 - Atkinson passes on the full error for light tones (`atkinson`). Plain Atkinson cannot put a dot
   into any flat tone above ~223. Do not reintroduce a white-point headroom to fix highlights.
 - The photo look's tone correction is a measured table, not a formula: the printer has a sharp

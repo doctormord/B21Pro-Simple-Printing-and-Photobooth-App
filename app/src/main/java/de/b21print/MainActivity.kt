@@ -1106,6 +1106,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun printGrayLoad() {
+        val p = printer ?: return
+        val h = ImageProcessor.mmToPx(labelSizeMm().second)
+        val density = sliderDensity.value.toInt()
+        val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
+        printJob { onProgress ->
+            log("Gray load test ${Niimbot.COLOR_HEAD}×$h, density $density, levels ${TestChart.LOAD_LEVELS.joinToString(" / ")} …")
+            val px = withContext(Dispatchers.Default) { TestChart.grayLoad(h, "LOAD D$density") }
+            p.printGray(px, h, density, labelType, onProgress)
+        }
+    }
+
     // Hidden debug console: test chart, printer diagnostics, firmware flasher, and raw text commands
     // to the BLE characteristic with every reply. App log lines are mirrored into its log.
     private fun showDebugConsole() {
@@ -1221,20 +1233,23 @@ class MainActivity : AppCompatActivity() {
             })
             addView(row(
                 button("Gray wedge", p != null) { dialog?.dismiss(); printColorTest(gray = true) },
-                button("Red/black test", p != null) { dialog?.dismiss(); printColorTest(gray = false) },
+                button("Gray load test", p != null) { dialog?.dismiss(); printGrayLoad() },
             ))
-            addView(button("Save print bitmap") {
-                // Exactly the dots that would be sent, 1:1, for checking patterns without a print
-                val r = rendered ?: return@button toast(getString(R.string.print_need_photo))
-                val px = IntArray(r.bits.size) { i ->
-                    r.levels?.let { l -> val g = 255 - 17 * l[i]; android.graphics.Color.rgb(g, g, g) }
-                        ?: if (r.bits[i].toInt() != 0) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                }
-                val f = File(getExternalFilesDir(null), "print.png")
-                f.outputStream().use { Bitmap.createBitmap(px, r.width, r.height, Bitmap.Config.ARGB_8888)
-                    .compress(Bitmap.CompressFormat.PNG, 100, it) }
-                appendLog("Saved ${r.width}×${r.height} to ${f.absolutePath}")
-            })
+            addView(row(
+                button("Red/black test", p != null) { dialog?.dismiss(); printColorTest(gray = false) },
+                button("Save print bitmap") {
+                    // Exactly the dots that would be sent, 1:1, for checking patterns without a print
+                    val r = rendered ?: return@button toast(getString(R.string.print_need_photo))
+                    val px = IntArray(r.bits.size) { i ->
+                        r.levels?.let { l -> val g = 255 - 17 * l[i]; android.graphics.Color.rgb(g, g, g) }
+                            ?: if (r.bits[i].toInt() != 0) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                    }
+                    val f = File(getExternalFilesDir(null), "print.png")
+                    f.outputStream().use { Bitmap.createBitmap(px, r.width, r.height, Bitmap.Config.ARGB_8888)
+                        .compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    appendLog("Saved ${r.width}×${r.height} to ${f.absolutePath}")
+                },
+            ))
             addView(button("Print bitmap file …", p != null) {
                 dialog?.dismiss()
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_BITMAP_FILE)
@@ -1557,8 +1572,9 @@ class MainActivity : AppCompatActivity() {
         val (wmm, hmm) = labelSizeMm()
         val w = minOf(ImageProcessor.mmToPx(wmm), if (gray) Niimbot.COLOR_HEAD else Niimbot.PRINTHEAD_PIXELS)
         val h = ImageProcessor.mmToPx(hmm)
-        // Patches of at least 2 mm, so the photo has enough of each to measure
-        val small = TestChart.calLayout(w, h, if (gray) 4 else 5).patches[0].let { minOf(it.w, it.h) < 24 }
+        // Patches of at least 2 mm (gray bands 0.7 mm high), so the photo has enough of each to measure
+        val chart = TestChart.calChart(w, h, gray)
+        val small = chart.patches[0].let { minOf(it.w, it.h) < if (gray) 8 else 24 }
         if (l.round || l.window != null || small) return toast(getString(R.string.cal_plain_label))
         val key = mode + density
         val pad = dp(24f).toInt()
@@ -1588,11 +1604,11 @@ class MainActivity : AppCompatActivity() {
             addView(TextView(this@MainActivity).apply { setText(R.string.cal_steps); setPadding(0, gap, 0, gap) })
             addView(button(R.string.cal_print) { printCalibration(mode, w, h, density) }.apply { isEnabled = printer != null })
             addView(LinearLayout(this@MainActivity).apply {
-                addView(button(R.string.cal_photo) { takePhoto("chart.jpg", REQ_CAL_CAMERA) },
+                addView(button(R.string.cal_photo) { takePhoto("chart.jpg", REQ_CAL_CAMERA) }.apply { setIconResource(R.drawable.ic_camera) },
                     LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 addView(button(R.string.cal_pick) {
                     startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_CAL_GALLERY)
-                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = gap })
+                }.apply { setIconResource(R.drawable.ic_gallery) }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = gap })
             })
             addView(status)
             addView(imgChart)
@@ -1630,7 +1646,7 @@ class MainActivity : AppCompatActivity() {
             reading = null
             scope.launch {
                 val r = withContext(Dispatchers.Default) {
-                    runCatching { ChartReader.read(decode(uri), w, h, if (gray) 4 else 5) }
+                    runCatching { ChartReader.read(decode(uri), w, h, chart) }
                         .onFailure { log("Calibration: ${it.message}") }.getOrNull()
                 }
                 if (r == null) { status.setText(R.string.cal_not_found); return@launch }
@@ -1653,7 +1669,7 @@ class MainActivity : AppCompatActivity() {
         printJob { onProgress ->
             log("Calibration chart ${w}×$h, $mode, density $density …")
             if (mode == PaperProfile.GRAY) {
-                val levels = withContext(Dispatchers.Default) { TestChart.grayCalibration(w, h, "CAL 16 D$density") }
+                val levels = withContext(Dispatchers.Default) { TestChart.grayCalibration(w, h, "CAL 16B D$density") }
                 val r = ImageProcessor.Result(ByteArray(w * h), w, h, Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888), levels)
                 p.printResult(r, false, density, labelType, 1, onProgress)
             } else {

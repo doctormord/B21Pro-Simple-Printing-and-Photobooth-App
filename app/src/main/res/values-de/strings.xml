@@ -176,8 +176,8 @@
     <string name="cal_info">%1$s, Dichte %2$d, %3$s</string>
     <string name="cal_steps">1. Testbild drucken.\n2. Bei gleichmäßigem, indirektem Licht fotografieren: das ganze Etikett im Bild, ohne Schatten und Spiegelung.\n3. Prüfen, ob die roten Kästchen auf den Feldern sitzen, Profil benennen und speichern.\nDie Kurve gilt nur für diesen Modus und diese Dichte.</string>
     <string name="cal_print">Testbild drucken</string>
-    <string name="cal_photo">Foto aufnehmen</string>
-    <string name="cal_pick">Foto wählen</string>
+    <string name="cal_photo">Kamera</string>
+    <string name="cal_pick">Galerie</string>
     <string name="cal_reading">Testbild wird ausgewertet …</string>
     <string name="cal_not_found">Testbild nicht gefunden. Alle vier Eckquadrate müssen im Foto sein.</string>
     <string name="cal_result">Schwärzung je Stufe, 0 = Papier, 100 = dunkelste Stufe:\n%s</string>

@@ -129,7 +129,7 @@
     <string name="flash_off">Flash off</string>
     <string name="switch_camera">Switch camera</string>
     <string name="booth_hint">Press the shutter and smile!</string>
-    <string name="shutter">Take photo</string>
+    <string name="shutter">Camera</string>
     <string name="timer_off">Now</string>
     <string name="timer_seconds">%1$d s</string>
     <string name="booth_review">Like it?</string>
@@ -190,7 +190,7 @@
     <string name="cal_steps">1. Print the chart.\n2. Photograph it in even, indirect light: the whole label in view, no shadow or glare on it.\n3. Check that the red boxes sit on the patches, name the profile and save.\nThe curve applies to this mode and density only.</string>
     <string name="cal_print">Print chart</string>
     <string name="cal_photo">Take photo</string>
-    <string name="cal_pick">Choose photo</string>
+    <string name="cal_pick">Gallery</string>
     <string name="cal_reading">Reading the chart…</string>
     <string name="cal_not_found">Chart not found. All four corner squares must be in the photo.</string>
     <string name="cal_result">Darkness per step, 0 = paper, 100 = darkest step:\n%s</string>

@@ -14,7 +14,8 @@ for tablets.
 **Photos**
 - Camera, gallery, or *Share* from any other app; crop to the label shape or freely
 - 16-level gray printing (*Fine*) or 1-bit dithering (*Coarse*), twelve raster looks (see below),
-  brightness, contrast, invert, favourites
+  brightness, contrast, invert, favourites. Gray gets much better with a patched printer firmware
+  (see *Gray mode*); the app works with the original firmware too
 - Paper profiles: tone curves measured in the app from a photo of a printed chart, picked
   automatically by the roll's RFID tag
 - Portrait photos from Samsung phones: the depth map splits subject and background; the background
@@ -81,12 +82,25 @@ The other looks are black-and-white patterns by nature and always print in 1-bit
 
 ### Gray mode
 
-The B21 Pro has a 16-level gray mode. Each dot gets one of 16 heat levels, so tones no longer depend on dot patterns and
-dot spread. The app diffuses the photo to 16 levels and spreads the tone
-target (gamma, see below) over them by how dark each level actually prints. Levels 1–9 leave no
-mark on the rolls tried so far, at densities 3 to 5, so only white and levels 10–15 are used; light
-tones become sparse dots of level 10. Without a paper profile the levels measured on an original roll
-apply (`PrintCurve.GRAY`), with one the paper's own (see *Paper profile*). Printing takes about four times as long as 1-bit.
+The B21 Pro has a 16-level gray mode. Each dot gets one of 16 heat levels, so tones no longer depend
+on dot patterns and dot spread. The app diffuses the photo to 16 levels and spreads the tone target
+(gamma, see below) over them by how dark each level actually prints. Without a paper profile the
+levels measured on an original roll apply (`PrintCurve.GRAY`), with one the paper's own (see
+*Calibration*). Printing takes about four times as long as 1-bit.
+
+How many of the 16 levels show depends on the printer firmware, not on the app:
+
+- **Original firmware**: the low levels get so little heat that levels 1 to 6–9 leave no mark on the
+  rolls tried so far, so about six tones are left; light tones become sparse dots of the lightest
+  level that marks. Rows with many dark dots also print lighter than rows with few, because the
+  printer makes up too little for the voltage drop. The app works fine with it; gray photos simply
+  have fewer tones.
+- **Patched firmware** (released separately, not part of the app): spreads the heat of the 16 levels
+  over the range the paper actually reacts to and compensates rows with many dots properly. On a
+  third-party 40 × 40 mm roll about ten levels then print as distinct tones, the same tone prints
+  alike in a small detail and a large area, and photos keep their mid tones.
+
+After changing the firmware, calibrate the paper profile again: the levels print differently.
 
 ### Tone correction (1-bit)
 
@@ -163,13 +177,16 @@ with the photo; it is laid over the label exactly like the photo. Other phones' 
 *Paper profile → Calibrate…* measures the current print mode at the current density on the loaded
 paper, without a computer:
 
-1. *Print chart*: corner squares, patches with white gutters between them (16 gray levels in *Fine*,
-   25 tones in *Coarse*, dithered with the selected look: photo, *Amiga*, *Amiga fine*, *Blue noise*
-   or *Riemersma*) and the settings as text. Needs a plain label of at least
-   30 × 30 mm.
-2. *Take photo* (or *Choose photo*): the whole label in even, indirect light. The app finds the
+1. *Print chart*: corner squares, the steps to measure and the settings as text. Needs a plain
+   label of at least 30 × 30 mm. In *Coarse*: 5 × 5 patches of 25 tones with white gutters, dithered
+   with the selected look (photo, *Amiga*, *Amiga fine*, *Blue noise* or *Riemersma*). In *Fine*: one
+   band per gray level across the whole width ("CAL 16B"). A grid of patches misreads the gray
+   levels, since the right side of the head prints darker and each patch would only see its own
+   spot; a band averages over the head.
+2. *Camera* (or *Gallery*): a photo of the whole label in even, indirect light. The app finds the
    corner squares, maps the chart into the photo in any orientation, and measures each patch
-   against the white gutter around it, so uneven light across the label cancels out.
+   against the white around it (a band against the white left and right of it), so uneven light
+   across the label cancels out.
 3. Check the outlined patches on the rectified chart and the measured curve, name the profile and
    save. The curve belongs to that mode, look and density; other densities keep the defaults until
    they are measured too. Below the profile field the app shows whether the current settings have a
@@ -190,9 +207,11 @@ Signs use the same label and print settings:
 - Android 9 or newer with Bluetooth LE
 - A NIIMBOT B21 Pro (other B21 variants may work, untested)
 
-The app does not check the roll's RFID tag; it only reads the barcode to pick a paper profile. On stock firmware, rolls without a valid NIIMBOT tag
-still print very faint, because the printer firmware itself lowers the heat; the app cannot change
-that. With a patched printer firmware they print normally.
+The app works with the printer's original firmware; nothing in it needs a patched one. It does not
+check the roll's RFID tag; it only reads the barcode to pick a paper profile. On the original
+firmware, rolls without a valid NIIMBOT tag still print very faint, because the printer firmware
+itself lowers the heat; the app cannot change that. With a patched printer firmware, released
+separately, they print normally and the gray mode has more tones (see *Gray mode*).
 
 ## Install
 
@@ -265,6 +284,10 @@ the BLE characteristic and shows every reply. It also offers:
   around the current gamma (−0.3, ±0, +0.3, +0.6, labelled at the top), to choose from one print.
 - **Gray wedge**: prints 16 flat gray levels, a smooth ramp diffused to 16 levels and the same
   ramp in black and white only, straight to the printer.
+- **Gray load test**: a light, a mid and a dark gray level, each as a patch alone, with the same
+  level running on over half the width and over the whole width. If the printer compensates rows
+  with many dots correctly, the three patches of a level look alike; on the original firmware the
+  ones next to the long bands print lighter. For comparing printer firmware.
 - **Red/black test**: black ramp, red ramp, both side by side, 8-dot stripes and a 1-dot
   checkerboard in red and black.
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
@@ -319,7 +342,7 @@ main reference.
 | `DepthMap.kt`                    | reads the depth map of Samsung portrait photos                 |
 | `PaperProfile.kt`                | paper profiles with their measured curves, stored in the preferences |
 | `ChartReader.kt`                 | reads a photo of a calibration chart (in-app `tools/calib.py`) |
-| `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration chart |
+| `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration charts, gray wedge and load test |
 | `TextLabel.kt`                   | sign rendering                                                 |
 | `Labels.kt`                      | label presets                                                  |
 | `MainActivity.kt`                | main screen                                                    |

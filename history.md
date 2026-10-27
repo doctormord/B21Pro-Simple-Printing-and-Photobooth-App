@@ -4,6 +4,32 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.4.1 (2026-10-27)
+
+### Gray chart as bands
+The gray calibration chart had the 16 levels as a 4 × 4 grid. On paper the last patch of each row
+came out a step too dark and the first patch of the next row barely darker than it, on two different
+rolls: the right side of the head prints darker. The profile then treated some levels as equal and
+others as far apart, and the mid tones of photos lost detail. The chart now prints one band per
+level across the whole width ("CAL 16B"), so each level is averaged over the head. The paper white
+comes from the margins left and right of each band, and the bands sit only 3 dots apart, so even a
+30 mm label fits 16 bands of 0.8 mm. Charts of the old layout can no longer be read.
+
+### Gray load test
+Many dots heating at once pull the printer's supply down, and the printer makes up for it with a
+longer pulse for level planes that hold many dots. In the gray mode that extra time is about as long
+as the plane's own, and on the original firmware it is still too short: a tone prints lighter where
+much of the row shares its levels. On a third-party roll a level-7 patch printed 52 % darker than
+paper alone and 36 % next to a full-width band of the same level. Calibration cannot fix this, since
+the same level prints differently depending on the rest of the row. The debug console's *Gray load
+test* prints a light, a mid and a dark level as a patch alone, with the same level running on over
+half the width and over the whole width, to compare printer firmware: with the load compensation
+doubled (a patched firmware, released separately from the app) the mid and dark patches print alike.
+
+### Calibration dialog
+The photo buttons read *Camera* and *Gallery* with icons; "Foto aufnehmen" broke over three lines on
+phones. The debug console has two buttons per row.
+
 ## 1.4.0 (2026-10-26)
 
 ### Gray mode

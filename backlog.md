@@ -4,10 +4,10 @@ Open items, roughly in order of priority.
 
 ## Gray and red/black (needs paper)
 
-- **Low gray levels print white.** Levels 1–9 leave no mark (densities 3–5, original and coloured
-  rolls); neither the rest of the row, hot neighbours nor command `0x59` change that. The
-  manufacturer's app still uses levels 4–9 heavily in photos: print the same photo from both apps
-  and compare the light tones.
+- **Gray on the original firmware.** Levels 1–9 leave no mark (densities 3–5, original and coloured
+  rolls); that is the firmware's heat table, which the app cannot change (a patched firmware,
+  released separately, fixes it). Open: measure an original roll with the patched firmware, so one
+  firmware curve fits both kinds of paper; light levels still lose some darkness next to dense rows.
 - **Calibrate the 1-bit looks on paper.** *Amiga*, *Amiga fine*, *Blue noise* and *Riemersma* each
   have a chart; print and read them, then print a photo per look: does the tone fit, are there
   stripes?

@@ -14,9 +14,9 @@ for tablets.
   <img src="docs/printer-gray.jpg" width="40%" alt="Gray print coming out of the B21 Pro">
 </p>
 
-Real prints on third-party 40 × 40 mm labels: left the 16-level gray mode, right *Amiga fine*
-(1-bit), each under its calibration chart; on the right a gray print straight out of the printer.
-The gray prints were made with a patched printer firmware (see *Gray mode*).
+Real prints on third-party 40 × 40 mm labels. First photo: the 16-level gray mode (left) and
+*Amiga fine*, 1-bit (right), each under its calibration chart. Second photo: a gray print straight
+out of the printer. The gray prints were made with a patched printer firmware (see *Gray mode*).
 
 ## Features
 

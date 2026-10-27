@@ -9,6 +9,15 @@ for tablets.
   <img src="docs/tablet-portrait.png" width="30%" alt="Tablet, portrait">
 </p>
 
+<p>
+  <img src="docs/print-gray-amiga.jpg" width="58%" alt="Gray and Amiga fine prints on 40 × 40 mm labels">
+  <img src="docs/printer-gray.jpg" width="40%" alt="Gray print coming out of the B21 Pro">
+</p>
+
+Real prints on third-party 40 × 40 mm labels: left the 16-level gray mode, right *Amiga fine*
+(1-bit), each under its calibration chart; on the right a gray print straight out of the printer.
+The gray prints were made with a patched printer firmware (see *Gray mode*).
+
 ## Features
 
 **Photos**

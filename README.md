@@ -14,8 +14,10 @@ for tablets.
 **Photos**
 - Camera, gallery, or *Share* from any other app; crop to the label shape or freely
 - 16-level gray printing (*Fine*) or 1-bit dithering (*Coarse*), twelve raster looks (see below),
-  brightness, contrast, invert, favourites. Gray gets much better with a patched printer firmware
-  (see *Gray mode*); the app works with the original firmware too
+  brightness, contrast, invert, favourites. Gray prints on plain standard labels too (with a printer firmware
+  without the RFID roll check), which the manufacturer's app does not offer at all, not even on
+  NIIMBOT's own RFID labels. Gray gets much
+  better with a patched printer firmware (see *Gray mode*); the app works with the original firmware too
 - Paper profiles: tone curves measured in the app from a photo of a printed chart, picked
   automatically by the roll's RFID tag
 - Portrait photos from Samsung phones: the depth map splits subject and background; the background
@@ -87,6 +89,11 @@ on dot patterns and dot spread. The app diffuses the photo to 16 levels and spre
 (gamma, see below) over them by how dark each level actually prints. Without a paper profile the
 levels measured on an original roll apply (`PrintCurve.GRAY`), with one the paper's own (see
 *Calibration*). Printing takes about four times as long as 1-bit.
+
+The manufacturer's app offers gray only on NIIMBOT's dedicated gray rolls. B21 Print prints gray on
+any plain label: third-party rolls and NIIMBOT's standard RFID rolls alike. This needs a printer
+firmware with at least the RFID roll check removed; on the original firmware such rolls print very
+faint (see *Requirements*).
 
 How many of the 16 levels show depends on the printer firmware, not on the app:
 

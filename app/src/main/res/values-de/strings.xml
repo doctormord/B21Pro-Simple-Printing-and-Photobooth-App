@@ -197,4 +197,18 @@
     <string name="fav_add">Als Favorit merken</string>
     <string name="fav_saved">Favorit: %s</string>
     <string name="fav_delete">Favorit „%s“ löschen?</string>
+    <string name="battery">Akku %1$s</string>
+    <string name="battery_low_ask">Akku schwach: %1$s. Trotzdem drucken?</string>
+    <string name="profile_manage">Verwalten</string>
+    <string name="cal_discard">Nicht gespeichert. Messung verwerfen?</string>
+    <string name="cal_discard_yes">Verwerfen</string>
+    <string name="qr_code">QR-Code</string>
+    <string name="orient_upright">Hoch</string>
+    <string name="orient_land_cw">Quer ↻</string>
+    <string name="orient_land_ccw">Quer ↺</string>
+    <string name="panorama">Panorama (Etiketten nebeneinander)</string>
+    <string name="pano_off">Aus</string>
+    <string name="pano_gap">Abstand zwischen den Etiketten</string>
+    <string name="pano_gap_mm">%1$.1f mm</string>
+    <string name="pano_no_booth">Die Fotobox druckt ein Etikett, Panorama zuerst ausschalten</string>
 </resources>

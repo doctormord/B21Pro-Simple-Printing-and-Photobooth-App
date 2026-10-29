@@ -18,16 +18,17 @@ data class TextStyle(
     val underline: Boolean = false,
     val frame: Int = 0,     // 0 none, 1 line, 2 bold, 3 double, 4 dashed
     val label: String = "",
+    val qr: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("text", text).put("font", font).put("bold", bold).put("italic", italic)
-        .put("underline", underline).put("frame", frame).put("label", label)
+        .put("underline", underline).put("frame", frame).put("label", label).put("qr", qr)
 
     companion object {
 
         fun fromJson(o: JSONObject) = TextStyle(
             o.optString("text"), o.optInt("font"), o.optBoolean("bold", true), o.optBoolean("italic"),
-            o.optBoolean("underline"), o.optInt("frame"), o.optString("label"),
+            o.optBoolean("underline"), o.optInt("frame"), o.optString("label"), o.optBoolean("qr"),
         )
 
         fun typeface(font: Int, bold: Boolean, italic: Boolean): Typeface {
@@ -88,6 +89,7 @@ object TextLabel {
 
         val text = s.text.trim()
         if (text.isEmpty()) return
+        if (s.qr) { drawQr(canvas, textBox, text); return }
         val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             typeface = TextStyle.typeface(s.font, s.bold, s.italic)
@@ -117,6 +119,41 @@ object TextLabel {
         for (line in lines) {
             canvas.drawText(line, textBox.centerX(), y, tp)
             y += lineH
+        }
+    }
+
+    // Smallest module (dots) that is still reliable on thermal paper
+    private const val QR_MIN_MODULE = 3
+    private const val QR_QUIET = 2
+
+    // Standard QR code, as large as fits with whole dots per module. The error correction is the
+    // highest of Q, M, L whose modules still print at QR_MIN_MODULE dots or more; a short text
+    // therefore gets plenty of redundancy and a long one only as much as the size allows.
+    private fun drawQr(canvas: Canvas, box: RectF, text: String) {
+        val levels = listOf(com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.Q,
+            com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.L)
+        val avail = minOf(box.width(), box.height())
+        var chosen: com.google.zxing.qrcode.encoder.QRCode? = null
+        var module = 0
+        for (level in levels) {
+            val hints = mapOf(
+                com.google.zxing.EncodeHintType.ERROR_CORRECTION to level,
+                com.google.zxing.EncodeHintType.CHARACTER_SET to "UTF-8",
+            )
+            val code = runCatching { com.google.zxing.qrcode.encoder.Encoder.encode(text, level, hints) }.getOrNull() ?: continue
+            val m = (avail / (code.matrix.width + 2 * QR_QUIET)).toInt()
+            if (chosen == null || m >= QR_MIN_MODULE) { chosen = code; module = m }
+            if (m >= QR_MIN_MODULE) break
+        }
+        val code = chosen ?: return
+        if (module < 1) return
+        val n = code.matrix.width
+        val side = n * module
+        val x0 = Math.round(box.centerX() - side / 2f).toFloat()
+        val y0 = Math.round(box.centerY() - side / 2f).toFloat()
+        val p = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
+        for (y in 0 until n) for (x in 0 until n) if (code.matrix.get(x, y).toInt() == 1) {
+            canvas.drawRect(x0 + x * module, y0 + y * module, x0 + (x + 1) * module, y0 + (y + 1) * module, p)
         }
     }
 

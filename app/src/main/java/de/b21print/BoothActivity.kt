@@ -52,6 +52,7 @@ object Booth {
         val twoColorRoll: Boolean,
         val labelType: Int,
         val copies: Int,
+        val orient: Int = 0,
     )
 
     var printer: B21Printer? = null
@@ -59,6 +60,8 @@ object Booth {
     // Point to the MainActivity currently shown (a new instance after rotation)
     var log: ((String) -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
+    // Last picture taken (cut to the frame), picked up by MainActivity when the booth closes
+    var lastPhoto: Bitmap? = null
 }
 
 // Dims everything outside the label area so you see what will be printed
@@ -333,8 +336,10 @@ class BoothActivity : AppCompatActivity() {
             val cfg = Booth.config ?: return@launch
             val r = withContext(Dispatchers.Default) {
                 val crop = cropToFrame(bmp)
+                Booth.lastPhoto = crop
                 ImageProcessor.render(crop, cfg.widthMm, cfg.heightMm, cfg.label.window, cfg.label.frameColor,
-                    cfg.options, cfg.label.round)
+                    cfg.options, cfg.label.round, null,
+                    if (cfg.orient == 0) Niimbot.PRINTHEAD_PIXELS else Int.MAX_VALUE).withRot(cfg.orient)
             }
             shot = r
             showResult(r)

@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.ImageDecoder
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -79,6 +80,13 @@ class MainActivity : AppCompatActivity() {
     private val bluetooth by lazy { getSystemService(BluetoothManager::class.java).adapter }
 
     private lateinit var chipPrinter: Chip
+    private lateinit var txtBattery: TextView
+    private var battery: Niimbot.Battery? = null
+    private var rollAutoRed = false
+    private val sliderPano by lazy { findViewById<Slider>(R.id.sliderPano) }
+    private val sliderPanoGap by lazy { findViewById<Slider>(R.id.sliderPanoGap) }
+    private var batteryJob: Job? = null
+    private var printing = false
     private lateinit var txtDims: TextView
     private lateinit var txtLog: TextView
     private lateinit var preview: ImageView
@@ -129,6 +137,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         chipPrinter = findViewById(R.id.chipPrinter)
+        txtBattery = findViewById(R.id.txtBattery)
         txtDims = findViewById(R.id.txtDims)
         txtLog = findViewById(R.id.txtLog)
         preview = findViewById(R.id.preview)
@@ -188,6 +197,7 @@ class MainActivity : AppCompatActivity() {
         // Sign
         findViewById<TextInputLayout>(R.id.textLayout).setEndIconOnClickListener { startSpeech() }
         editText.doAfterTextChanged { scheduleRender(); updateTemplateButton() }
+        findViewById<MaterialSwitch>(R.id.switchQr).setOnCheckedChangeListener { _, _ -> scheduleRender(); updateTemplateButton() }
         toggleFont.check(fontIds[prefs.getInt("font", 0).coerceIn(0, 2)])
         if (prefs.getBoolean("bold", true)) toggleStyle.check(R.id.styleBold)
         toggleFrame.check(frameIds[prefs.getInt("frame", 0).coerceIn(0, 4)])
@@ -258,6 +268,8 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putBoolean("redRoll", on).apply()
             roll?.let { prefs.edit().putBoolean("twoColor_${it.barcode}", on).apply() }
             toggleSpeed.isEnabled = !on
+            // The toggle keeps its saved state while red is on; show it again (and print with it) when red goes off
+            if (!on) toggleSpeed.check(if (prefs.getInt("speed", 1) == 0) R.id.speedFast else R.id.speedFine)
             showDepthDetails()
             scheduleRender()
         }
@@ -275,6 +287,23 @@ class MainActivity : AppCompatActivity() {
         editHeight.doAfterTextChanged { onSizeEdited() }
         editCaption.doAfterTextChanged { scheduleRender() }
         switchInstant.setOnCheckedChangeListener { _, _ -> applyModeVisibility(); scheduleRender() }
+        val txtPano = findViewById<TextView>(R.id.txtPano)
+        val txtPanoGap = findViewById<TextView>(R.id.txtPanoGap)
+        sliderPano.addOnChangeListener { _, v, _ ->
+            txtPano.text = if (v.toInt() == 1) getString(R.string.pano_off) else v.toInt().toString()
+            applyModeVisibility(); scheduleRender()
+        }
+        sliderPanoGap.addOnChangeListener { _, v, _ ->
+            txtPanoGap.text = getString(R.string.pano_gap_mm, v); scheduleRender()
+        }
+        val toggleOrient = findViewById<MaterialButtonToggleGroup>(R.id.toggleOrient)
+        toggleOrient.check(intArrayOf(R.id.orient0, R.id.orient1, R.id.orient2)[prefs.getInt("orient", 0).coerceIn(0, 2)])
+        toggleOrient.addOnButtonCheckedListener { _, id, checked ->
+            if (!checked) return@addOnButtonCheckedListener
+            prefs.edit().putInt("orient", intArrayOf(R.id.orient0, R.id.orient1, R.id.orient2).indexOf(id)).apply()
+            // A crop made for the other orientation is refitted in scheduleRender
+            scheduleRender()
+        }
         switchOverscan.isChecked = prefs.getBoolean("overscan", false)
         switchOverscan.setOnCheckedChangeListener { _, on ->
             prefs.edit().putBoolean("overscan", on).apply()
@@ -366,6 +395,7 @@ class MainActivity : AppCompatActivity() {
         Booth.onDisconnected = {
             runOnUiThread {
                 printer = null
+                stopBatteryPolling()
                 updatePrinterChip()
                 log("Disconnected")
             }
@@ -384,6 +414,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         // Rotation recreates the activity; keep the connection in that case
         if (isFinishing) {
+            stopBatteryPolling()
             printer?.disconnect()
             Booth.printer = null
         }
@@ -401,6 +432,7 @@ class MainActivity : AppCompatActivity() {
     private var consoleSink: ((String) -> Unit)? = null
 
     private fun log(msg: String) = runOnUiThread {
+        android.util.Log.i("B21", msg)   // also readable with: adb logcat -s B21
         val t = SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(Date())
         txtLog.text = "$t  $msg\n${txtLog.text}"
         consoleSink?.invoke(msg)
@@ -416,11 +448,14 @@ class MainActivity : AppCompatActivity() {
         show(R.id.textCard, !photo)
         show(R.id.windowTuning, win)
         show(R.id.switchInstant, photo && !win && !selectedLabel.round)
+        show(R.id.toggleOrient, !win && !selectedLabel.round && physSizeMm().let { it.first != it.second })
         show(R.id.switchSoftEdge, photo)
         show(R.id.depthBox, photo && depth != null)
         showDepthDetails()
         show(R.id.switchOverscan, photo && selectedLabel.round)
-        show(R.id.captionLayout, photo && !win && switchInstant.isChecked)
+        show(R.id.captionLayout, photo && !win && instantOn())
+        show(R.id.panoBox, !win && !selectedLabel.round)
+        show(R.id.panoGapBox, panoN() > 1)
     }
 
     // ---------- Label list ----------
@@ -527,6 +562,7 @@ class MainActivity : AppCompatActivity() {
         underline = R.id.styleUnderline in toggleStyle.checkedButtonIds,
         frame = frameIds.indexOf(toggleFrame.checkedButtonId).coerceAtLeast(0),
         label = selectedLabel.name,
+        qr = findViewById<MaterialSwitch>(R.id.switchQr).isChecked,
     )
 
     private fun applyTextStyle(s: TextStyle) {
@@ -535,6 +571,7 @@ class MainActivity : AppCompatActivity() {
         toggleFrame.check(frameIds[s.frame.coerceIn(0, 4)])
         listOf(R.id.styleBold to s.bold, R.id.styleItalic to s.italic, R.id.styleUnderline to s.underline)
             .forEach { (id, on) -> if (on) toggleStyle.check(id) else toggleStyle.uncheck(id) }
+        findViewById<MaterialSwitch>(R.id.switchQr).isChecked = s.qr
         editText.setText(s.text)
         editText.setSelection(editText.length())
     }
@@ -731,8 +768,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun num(v: CharSequence?, def: Double) = v.toString().replace(',', '.').toDoubleOrNull() ?: def
 
+    // The crop has the aspect of the photo area. When the frame, the label or the orientation changes
+    // that aspect, refit the crop (same centre, about the same area) so the picture is not cut again.
+    private fun refitCrop() {
+        val orig = ImageStore.rotated() ?: return
+        val n = ImageStore.norm ?: return
+        if (ImageStore.free || calibration || textMode || source == null) return
+        val a = photoAspect()
+        val cur = source ?: return
+        if (Math.abs(cur.width.toFloat() / cur.height / a - 1f) < 0.01f) return
+        val bw = orig.width.toFloat(); val bh = orig.height.toFloat()
+        val area = n.width() * bw * n.height() * bh
+        var h = Math.sqrt((area / a).toDouble()).toFloat()
+        var w = h * a
+        val k = minOf(1f, bw / w, bh / h)
+        w *= k; h *= k
+        val cx = ((n.left + n.right) / 2f * bw).coerceIn(w / 2, bw - w / 2)
+        val cy = ((n.top + n.bottom) / 2f * bh).coerceIn(h / 2, bh - h / 2)
+        val nn = RectF((cx - w / 2) / bw, (cy - h / 2) / bh, (cx + w / 2) / bw, (cy + h / 2) / bh)
+        ImageStore.norm = nn
+        ImageStore.cropped = ImageStore.crop(orig, nn)
+        ImageStore.croppedDepth = ImageStore.rotatedDepth()?.let { ImageStore.crop(it, nn) }
+        source = ImageStore.cropped
+        depth = ImageStore.croppedDepth
+    }
+
     private fun scheduleRender() {
         if (!::sliderOffsetY.isInitialized) return
+        refitCrop()
         showCalStatus()
         if (calibration && currentChartKey() != chartKey) { chartKey = currentChartKey(); loadTestChart(calibrate = true); return }
         renderJob?.cancel()
@@ -745,7 +808,7 @@ class MainActivity : AppCompatActivity() {
             if (textMode) {
                 val style = currentTextStyle()
                 r = withContext(Dispatchers.Default) {
-                    ImageProcessor.renderText(style, wmm, hmm, label.window, label.frameColor, label.round)
+                    ImageProcessor.renderText(style, wmm, hmm, label.window, label.frameColor, label.round, capPx()).withRot(orient())
                 }
                 rendered = if (style.text.isNotBlank()) r else null
             } else {
@@ -756,7 +819,7 @@ class MainActivity : AppCompatActivity() {
                 r = withContext(Dispatchers.Default) {
                     if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round,
                         sweepGammas().map { "%.1f".format(Locale.ROOT, it) to opts.copy(toneGamma = it) })
-                    else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round, dep)
+                    else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round, dep, capPx()).withRot(orient())
                 }
                 rendered = if (src != null) r else null
             }
@@ -784,7 +847,7 @@ class MainActivity : AppCompatActivity() {
         if (calibration) return ImageProcessor.Options(
             fit = fit, rotation = 0, raster = ImageProcessor.Raster.TEXT,
             brightness = 0, contrast = 0, invert = false,
-            instant = switchInstant.isChecked && !label.round, caption = "",
+            instant = instantOn() && !label.round, caption = "",
         )
         return ImageProcessor.Options(
             fit = fit,
@@ -793,7 +856,7 @@ class MainActivity : AppCompatActivity() {
             brightness = sliderBrightness.value.toInt(),
             contrast = sliderContrast.value.toInt(),
             invert = switchInvert.isChecked,
-            instant = switchInstant.isChecked && !label.round,
+            instant = instantOn() && !label.round,
             softEdge = switchSoftEdge.isChecked,
             overscan = switchOverscan.isChecked && label.round,
             density = sliderDensity.value.toInt(),
@@ -818,11 +881,50 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun labelSizeMm(): Pair<Double, Double> {
+    // The label as it sticks on the printer: width across the head, height in the feed direction
+    private fun physSizeMm(): Pair<Double, Double> {
         val l = selectedLabel
         val wmm = if (l.freestyle) num(editWidth.text, 50.0).coerceIn(5.0, Niimbot.MAX_WIDTH_MM) else l.widthMm
         val hmm = if (l.freestyle) num(editHeight.text, 30.0).coerceIn(5.0, Niimbot.MAX_HEIGHT_MM) else l.heightMm
         return wmm to hmm
+    }
+
+    // 0 upright, 1/2 landscape (the picture is laid out wide and turned clockwise / counter-clockwise
+    // for the print). Only for plain rectangular labels that are not square; charts stay upright.
+    private fun orient(): Int {
+        val l = selectedLabel
+        val (w, h) = physSizeMm()
+        if (l.round || l.window != null || w == h || calibration || sweep) return 0
+        return prefs.getInt("orient", 0)
+    }
+
+    // Panorama: the picture spans N labels in a row, printed as N consecutive labels
+    private fun panoN(): Int {
+        val l = selectedLabel
+        if (l.round || l.window != null || calibration || sweep) return 1
+        return sliderPano.value.toInt()
+    }
+    private fun panoGapMm() = if (panoN() > 1) sliderPanoGap.value.toDouble() else 0.0
+    private fun instantOn() = switchInstant.isChecked && panoN() == 1
+
+    // One label as the picture sees it (turned for landscape)
+    private fun singleSizeMm() = physSizeMm().let { (w, h) -> if (orient() == 0) w to h else h to w }
+
+    // The whole picture: one label, or the strip of a panorama including the gaps between the labels
+    private fun labelSizeMm() = singleSizeMm().let { (w, h) -> panoN().let { n -> (n * w + (n - 1) * panoGapMm()) to h } }
+    private fun capMm() = if (orient() == 0 && panoN() == 1) 50.0 else 100000.0
+    private fun capPx() = if (orient() == 0 && panoN() == 1) Niimbot.PRINTHEAD_PIXELS else Int.MAX_VALUE
+
+    // The labels of a panorama, left to right = print order
+    private fun panoSlices(r: ImageProcessor.Result): List<ImageProcessor.Result> {
+        val n = panoN()
+        if (n == 1) return listOf(r)
+        val sw = ImageProcessor.mmToPx(singleSizeMm().first)
+        val gp = ImageProcessor.mmToPx(panoGapMm())
+        return List(n) { i ->
+            val x0 = minOf(i * (sw + gp), r.width - 1)
+            r.slice(x0, minOf(x0 + sw, r.width))
+        }
     }
 
     // Aspect ratio of the area the photo goes into
@@ -831,11 +933,11 @@ class MainActivity : AppCompatActivity() {
         l.window?.let { return (it.w / it.h).toFloat() }
         if (l.round) return 1f
         val (wmm, hmm) = labelSizeMm()
-        if (switchInstant.isChecked) {
-            val r = ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, 50.0)), ImageProcessor.mmToPx(hmm))
+        if (instantOn()) {
+            val r = ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, capMm())), ImageProcessor.mmToPx(hmm))
             return r.width().toFloat() / r.height()
         }
-        return (minOf(wmm, 50.0) / hmm).toFloat()
+        return (minOf(wmm, capMm()) / hmm).toFloat()
     }
 
     private fun openCrop() {
@@ -902,6 +1004,43 @@ class MainActivity : AppCompatActivity() {
             rendered == null -> R.string.print_need_photo
             else -> R.string.print
         })
+    }
+
+    // Battery state from the heartbeat: read on connect and every 20 s while idle, never during a print
+    private fun startBatteryPolling(p: B21Printer) {
+        batteryJob?.cancel()
+        batteryJob = scope.launch {
+            var first = true
+            while (printer === p) {
+                if (!printing) {
+                    p.readBattery()?.let {
+                        battery = it
+                        if (first) log("Battery: raw %d, level %d, temp %d °C [%s]".format(it.raw, it.level, it.tempC,
+                            it.bytes.joinToString(" ") { b -> "%02X".format(b) }))
+                        first = false
+                        showBattery()
+                    }
+                }
+                delay(20000)
+            }
+        }
+    }
+
+    private fun stopBatteryPolling() {
+        batteryJob?.cancel()
+        battery = null
+        showBattery()
+    }
+
+    private fun batteryText(b: Niimbot.Battery) =
+        getString(R.string.battery, "L${b.level}" + (b.volts?.let { " · %.2f V".format(Locale.ROOT, it) } ?: " · ${b.raw}"))
+
+    private fun showBattery() {
+        val b = battery
+        txtBattery.visibility = if (b == null || printer == null) View.GONE else View.VISIBLE
+        if (b == null) return
+        txtBattery.text = batteryText(b)
+        txtBattery.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_battery, 0, 0, 0)
     }
 
     private fun updatePrinterChip(name: String? = null, connecting: Boolean = false) {
@@ -1002,7 +1141,8 @@ class MainActivity : AppCompatActivity() {
                 p.connect(device)
                 printer = p
                 Booth.printer = p
-                onRoll(p.readRoll())
+                onRoll(readRollRetry(p))
+                startBatteryPolling(p)
             } catch (e: Exception) {
                 p.disconnect()
                 log("Error: ${e.message}")
@@ -1012,9 +1152,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Photo booth: take a selfie and print it with the current settings
+    // Back from the booth: the last picture stays on the canvas, so its settings can still be changed
+    override fun onResume() {
+        super.onResume()
+        val b = Booth.lastPhoto ?: return
+        Booth.lastPhoto = null
+        findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode).check(R.id.modeAppPhoto)
+        ImageStore.reset(b)
+        ImageStore.cropped = b
+        ImageStore.free = true
+        source = b
+        depth = null
+        calibration = false
+        sweep = false
+        applyModeVisibility()
+        scheduleRender()
+    }
+
     private fun openBooth() {
         // Without a printer you can still set up camera and framing
         if (printer == null) toast(getString(R.string.booth_no_printer))
+        if (panoN() > 1) return toast(getString(R.string.pano_no_booth))
         val (wmm, hmm) = labelSizeMm()
         Booth.config = Booth.Config(
             label = selectedLabel,
@@ -1026,6 +1184,7 @@ class MainActivity : AppCompatActivity() {
             twoColorRoll = switchRed.isChecked,
             labelType = intArrayOf(1, 2, 3, 5)[paperIndex],
             copies = num(editCopies.text, 1.0).toInt().coerceIn(1, 20),
+            orient = orient(),
         )
         startActivity(Intent(this, BoothActivity::class.java))
     }
@@ -1033,6 +1192,18 @@ class MainActivity : AppCompatActivity() {
     private fun print() {
         val p = printer ?: return
         val r = rendered ?: return
+        battery?.takeIf { it.low }?.let { b ->
+            MaterialAlertDialogBuilder(this)
+                .setMessage(getString(R.string.battery_low_ask, batteryText(b)))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.print) { _, _ -> doPrint(p, r) }
+                .show()
+            return
+        }
+        doPrint(p, r)
+    }
+
+    private fun doPrint(p: B21Printer, r: ImageProcessor.Result) {
         val density = sliderDensity.value.toInt()
         val copies = num(editCopies.text, 1.0).toInt().coerceIn(1, 999)
         val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
@@ -1044,14 +1215,23 @@ class MainActivity : AppCompatActivity() {
                 r.levels != null -> "16 grays"
                 else -> "1-bit"
             }
-            log("Printing ${r.width}×${r.height} px, $mode, density $density …")
-            p.printResult(r, twoColor, density, labelType, copies, it)
+            log("Printing ${r.width}×${r.height} px, $mode, density $density, speed pref ${prefs.getInt("speed", 1)}, roll ${roll?.barcode ?: "none"} …")
+            val parts = panoSlices(r)
+            if (parts.size == 1) p.printResult(r, twoColor, density, labelType, copies, it)
+            else {
+                val total = parts.size * copies
+                for (c in 0 until copies) parts.forEachIndexed { i, part ->
+                    val done = c * parts.size + i
+                    p.printResult(part, twoColor, density, labelType, 1) { f -> it((done + f) / total) }
+                }
+            }
             textStyle?.let { history.addRecent(it) }
         }
     }
 
     // Runs a print with the progress bar and a disabled print button
     private fun printJob(job: suspend (onProgress: (Float) -> Unit) -> Unit) {
+        printing = true
         btnPrint.isEnabled = false
         btnPrint.setText(R.string.printing)
         progress.visibility = View.VISIBLE
@@ -1061,8 +1241,11 @@ class MainActivity : AppCompatActivity() {
                 job { f -> runOnUiThread { progress.setProgressCompat((f * 1000).toInt(), true) } }
             } catch (e: Exception) {
                 log("Print error: ${e.message}")
+                // After an error the roll tag may have been missed; read it again
+                printer?.let { pr -> runCatching { onRoll(readRollRetry(pr)) } }
             }
             progress.visibility = View.INVISIBLE
+            printing = false
             updatePrintButton()
         }
     }
@@ -1090,7 +1273,7 @@ class MainActivity : AppCompatActivity() {
     // full head width and the label height of the selected label
     private fun printColorTest(gray: Boolean) {
         val p = printer ?: return
-        val h = ImageProcessor.mmToPx(labelSizeMm().second)
+        val h = ImageProcessor.mmToPx(physSizeMm().second)
         val density = sliderDensity.value.toInt()
         val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
         printJob { onProgress ->
@@ -1108,7 +1291,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun printGrayLoad() {
         val p = printer ?: return
-        val h = ImageProcessor.mmToPx(labelSizeMm().second)
+        val h = ImageProcessor.mmToPx(physSizeMm().second)
         val density = sliderDensity.value.toInt()
         val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
         printJob { onProgress ->
@@ -1159,7 +1342,7 @@ class MainActivity : AppCompatActivity() {
         consoleSink = { appendLog(it) }
 
         val input = com.google.android.material.textfield.TextInputEditText(this).apply {
-            setText("test get sensor"); setSingleLine(true); textSize = 14f
+            setText(""); hint = "Raw text"; setSingleLine(true); textSize = 14f
         }
         val crlf = com.google.android.material.materialswitch.MaterialSwitch(this).apply {
             text = "Append \\r\\n"; isChecked = true
@@ -1176,9 +1359,14 @@ class MainActivity : AppCompatActivity() {
         val presets = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(this@MainActivity).apply {
-                for (c in listOf("test get sensor", "test rfidMode 3", "#10001")) {
+                for (c in listOf("Heartbeat 2", "Heartbeat 3", "Heartbeat 4")) {
                     addView(Chip(this@MainActivity).apply {
-                        text = c; setOnClickListener { input.setText(c) }
+                        text = c; isEnabled = p != null
+                        setOnClickListener {
+                            val bytes = Niimbot.packet(Niimbot.HEARTBEAT, intArrayOf(c.last() - '0'))
+                            appendLog("TX 0x55 [" + bytes.joinToString(" ") { "%02x".format(it) } + "]")
+                            scope.launch { runCatching { p?.sendRaw(bytes) } }
+                        }
                     }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                         .apply { marginEnd = gap })
                 }
@@ -1280,10 +1468,23 @@ class MainActivity : AppCompatActivity() {
             addView(logScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                 (resources.displayMetrics.heightPixels * 0.3f).toInt()))
         }
+        val titleBar = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(pad, gap, gap, 0)
+            addView(TextView(this@MainActivity).apply {
+                text = "Debug console"
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(android.widget.ImageButton(this@MainActivity).apply {
+                setImageResource(R.drawable.ic_close)
+                contentDescription = getString(R.string.close)
+                background = null
+                setOnClickListener { dialog?.dismiss() }
+            })
+        }
         val dlg = MaterialAlertDialogBuilder(this)
-            .setTitle("Debug console")
+            .setCustomTitle(titleBar)
             .setView(NestedScrollView(this).apply { addView(body) })
-            .setNegativeButton(R.string.close, null)
             .setOnDismissListener { p?.rawListener = null; consoleSink = null }
             .create()
         dialog = dlg
@@ -1527,31 +1728,53 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.paper_profile)
             .setSingleChoiceItems(names, list.indexOf(profile).coerceAtLeast(0)) { d, pos -> selectProfile(list[pos]); d.dismiss() }
             .setPositiveButton(R.string.profile_calibrate) { _, _ -> showCalibration() }
-        profile?.let { cur ->
-            b.setNeutralButton(R.string.profile_delete) { _, _ ->
-                MaterialAlertDialogBuilder(this)
-                    .setMessage(getString(R.string.profile_delete_confirm, cur.name))
-                    .setPositiveButton(R.string.profile_delete) { _, _ ->
-                        profiles.remove(cur)
-                        PaperProfile.save(prefs, profiles)
-                        selectProfile(null)
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
-            }
-        }
+        if (profiles.isNotEmpty()) b.setNeutralButton(R.string.profile_manage) { _, _ -> manageProfiles() }
         b.show()
+    }
+
+    // One checkbox per measured curve (profile, mode, density); the profile goes when its last curve does
+    private fun manageProfiles() {
+        val entries = profiles.flatMap { p -> p.curves.keys.sorted().map { k -> p to k } }
+        val labels = entries.map { (p, k) ->
+            "${p.name} · ${modeName(k.filter { !it.isDigit() })} D${k.filter { it.isDigit() }}"
+        }.toTypedArray()
+        val checked = BooleanArray(entries.size)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.profile_manage)
+            .setMultiChoiceItems(labels, checked) { _, i, on -> checked[i] = on }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.profile_delete) { _, _ ->
+                entries.filterIndexed { i, _ -> checked[i] }.forEach { (p, k) -> p.curves.remove(k) }
+                profiles.removeAll { it.curves.isEmpty() }
+                PaperProfile.save(prefs, profiles)
+                if (profile != null && profile !in profiles) selectProfile(null) else { showProfile(); scheduleRender() }
+            }
+            .show()
     }
 
     // A roll with an RFID tag sets the two-colour switch (a two-colour roll printed in the black-only
     // modes comes out a faint red) and selects the profile saved for its barcode
+    private suspend fun readRollRetry(p: B21Printer): B21Printer.Roll? {
+        repeat(3) { i ->
+            p.readRoll()?.let { return it }
+            if (i < 2) delay(400)
+        }
+        return null
+    }
+
     private fun onRoll(r: B21Printer.Roll?) {
         roll = r
-        if (r == null) return
+        if (r == null) {
+            log("No roll tag read")
+            // A red/black state taken from an earlier roll must not stay on without one
+            if (rollAutoRed) { rollAutoRed = false; switchRed.isChecked = false }
+            return
+        }
         log("Roll ${r.barcode}, ${r.used} of ${r.total} labels used")
         val two = prefs.getBoolean("twoColor_${r.barcode}", r.barcode in TWO_COLOR_ROLLS)
         if (two != switchRed.isChecked) {
             switchRed.isChecked = two
+            rollAutoRed = two
             toast(getString(if (two) R.string.roll_two_color else R.string.roll_black, r.barcode))
         }
         val p = profiles.firstOrNull { it.barcode == r.barcode } ?: return
@@ -1569,7 +1792,7 @@ class MainActivity : AppCompatActivity() {
         val mode = calMode() ?: return toast(getString(R.string.cal_no_look))
         val gray = mode == PaperProfile.GRAY
         val density = sliderDensity.value.toInt()
-        val (wmm, hmm) = labelSizeMm()
+        val (wmm, hmm) = physSizeMm()
         val w = minOf(ImageProcessor.mmToPx(wmm), if (gray) Niimbot.COLOR_HEAD else Niimbot.PRINTHEAD_PIXELS)
         val h = ImageProcessor.mmToPx(hmm)
         // Patches of at least 2 mm (gray bands 0.7 mm high), so the photo has enough of each to measure
@@ -1622,7 +1845,21 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton(R.string.close, null)
             .setOnDismissListener { calPhoto = null }
             .create()
+        dlg.setCanceledOnTouchOutside(false)
+        // A measured chart that was not saved must not vanish by accident
+        fun tryClose() {
+            if (reading == null) { dlg.dismiss(); return }
+            MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.cal_discard)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.cal_discard_yes) { _, _ -> dlg.dismiss() }
+                .show()
+        }
+        dlg.setOnKeyListener { _, key, ev ->
+            if (key == android.view.KeyEvent.KEYCODE_BACK && ev.action == android.view.KeyEvent.ACTION_UP) { tryClose(); true } else false
+        }
         dlg.show()
+        dlg.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).setOnClickListener { tryClose() }
         val save = dlg.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
         save.isEnabled = false
         save.setOnClickListener {
@@ -1692,9 +1929,9 @@ class MainActivity : AppCompatActivity() {
         return when {
             win != null -> ImageProcessor.mmToPx(win.w) to ImageProcessor.mmToPx(win.h)
             l.round -> ImageProcessor.mmToPx(wmm).let { it to it }
-            switchInstant.isChecked -> ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, 50.0)), ImageProcessor.mmToPx(hmm))
+            instantOn() -> ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(minOf(wmm, capMm())), ImageProcessor.mmToPx(hmm))
                 .let { it.width() to it.height() }
-            else -> ImageProcessor.mmToPx(minOf(wmm, 50.0)) to ImageProcessor.mmToPx(hmm)
+            else -> ImageProcessor.mmToPx(minOf(wmm, capMm())) to ImageProcessor.mmToPx(hmm)
         }
     }
 

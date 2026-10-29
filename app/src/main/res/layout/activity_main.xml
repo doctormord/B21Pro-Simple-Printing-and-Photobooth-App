@@ -25,11 +25,19 @@
                 android:layout_height="wrap_content" android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" android:maxLines="1" android:ellipsize="end" />
         </LinearLayout>
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="end">
         <com.google.android.material.chip.Chip android:id="@+id/chipPrinter"
-            style="@style/Widget.Material3.Chip.Assist"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:maxWidth="170dp" android:ellipsize="end"
-            android:text="@string/connect" app:chipIcon="@drawable/ic_bluetooth" app:chipIconTint="?attr/colorPrimary" />
+                style="@style/Widget.Material3.Chip.Assist"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:maxWidth="170dp" android:ellipsize="end"
+                android:text="@string/connect" app:chipIcon="@drawable/ic_bluetooth" app:chipIconTint="?attr/colorPrimary" />
+            <TextView android:id="@+id/txtBattery" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:visibility="gone"
+                android:layout_marginEnd="8dp" android:drawablePadding="4dp"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleAppMode"
@@ -104,9 +112,12 @@
                     app:endIconContentDescription="@string/dictate" app:endIconTint="?attr/colorPrimary">
                     <com.google.android.material.textfield.TextInputEditText android:id="@+id/editText"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:inputType="textCapSentences|textMultiLine" android:maxLines="3"
+                        android:inputType="textCapSentences|textMultiLine" android:imeOptions="flagNoEnterAction" android:maxLines="6"
                         android:textSize="20sp" />
                 </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchQr"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/qr_code" />
 
                 <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleFont"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -251,6 +262,35 @@
                 <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchInstant"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="4dp" android:text="@string/instant_frame" />
+                <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleOrient"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                    android:visibility="gone" app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/orient0">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/orient0"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/orient_upright" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/orient1"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/orient_land_cw" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/orient2"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/orient_land_ccw" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+            <LinearLayout android:id="@+id/panoBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
+                <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/panorama" android:textAppearance="?attr/textAppearanceLabelLarge" />
+                <TextView android:id="@+id/txtPano" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/pano_off" android:textColor="?attr/colorPrimary" android:textAppearance="?attr/textAppearanceLabelLarge" />
+            </LinearLayout>
+                <com.google.android.material.slider.Slider android:id="@+id/sliderPano" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:valueFrom="1" android:valueTo="6" android:stepSize="1" android:value="1" app:labelBehavior="gone" app:tickVisible="true" />
+                <LinearLayout android:id="@+id/panoGapBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
+                <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/pano_gap" android:textAppearance="?attr/textAppearanceLabelLarge" />
+                <TextView android:id="@+id/txtPanoGap" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0.0 mm" android:textColor="?attr/colorPrimary" android:textAppearance="?attr/textAppearanceLabelLarge" />
+            </LinearLayout>
+                    <com.google.android.material.slider.Slider android:id="@+id/sliderPanoGap" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:valueFrom="0" android:valueTo="8" android:stepSize="0.5" android:value="0" app:labelBehavior="gone" app:tickVisible="false" />
+                </LinearLayout>
+            </LinearLayout>
                 <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchOverscan"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="4dp" android:text="@string/overscan" />
@@ -297,14 +337,9 @@
                     <TextView android:layout_width="0dp" android:layout_weight="1"
                         android:layout_height="wrap_content" android:text="@string/brightness"
                         android:textAppearance="?attr/textAppearanceLabelLarge" />
-                    <TextView android:id="@+id/txtBrightness" android:layout_width="wrap_content"
+                    <TextView android:id="@+id/txtBrightness" android:layout_width="48dp" android:gravity="end"
                         android:layout_height="wrap_content" android:textColor="?attr/colorPrimary"
-                        android:textAppearance="?attr/textAppearanceLabelLarge" android:layout_marginEnd="8dp" />
-                    <com.google.android.material.button.MaterialButton android:id="@+id/btnResetTone"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content" android:layout_height="36dp"
-                        android:minHeight="0dp" android:paddingTop="0dp" android:paddingBottom="0dp"
-                        android:text="@string/reset" />
+                        android:textAppearance="?attr/textAppearanceLabelLarge" />
                 </LinearLayout>
                 <com.google.android.material.slider.Slider android:id="@+id/sliderBrightness"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -315,7 +350,7 @@
                     <TextView android:layout_width="0dp" android:layout_weight="1"
                         android:layout_height="wrap_content" android:text="@string/contrast"
                         android:textAppearance="?attr/textAppearanceLabelLarge" />
-                    <TextView android:id="@+id/txtContrast" android:layout_width="wrap_content"
+                    <TextView android:id="@+id/txtContrast" android:layout_width="48dp" android:gravity="end"
                         android:layout_height="wrap_content" android:textColor="?attr/colorPrimary"
                         android:textAppearance="?attr/textAppearanceLabelLarge" />
                 </LinearLayout>
@@ -323,6 +358,13 @@
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:valueFrom="-50" android:valueTo="50" android:stepSize="1" android:value="0"
                     app:labelBehavior="gone" app:tickVisible="false" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnResetTone"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content" android:layout_height="36dp"
+                        android:minHeight="0dp" android:paddingTop="0dp" android:paddingBottom="0dp"
+                        android:text="@string/reset" />
+                </LinearLayout>
                 <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchInvert"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:text="@string/invert" />

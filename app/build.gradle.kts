@@ -10,8 +10,8 @@ android {
         applicationId = "de.b21print"
         minSdk = 28
         targetSdk = 34
-        versionCode = 52
-        versionName = "1.4.1"
+        versionCode = 53
+        versionName = "1.4.2"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -46,5 +46,6 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
+    implementation("com.google.zxing:core:3.5.3")
     testImplementation("junit:junit:4.13.2")
 }

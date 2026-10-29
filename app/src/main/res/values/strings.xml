@@ -210,4 +210,18 @@
     <string name="fav_add">Save as favourite</string>
     <string name="fav_saved">Favourite: %s</string>
     <string name="fav_delete">Delete the favourite “%s”?</string>
+    <string name="battery">Battery %1$s</string>
+    <string name="battery_low_ask">Battery low: %1$s. Print anyway?</string>
+    <string name="profile_manage">Manage</string>
+    <string name="cal_discard">Not saved. Discard the measurement?</string>
+    <string name="cal_discard_yes">Discard</string>
+    <string name="qr_code">QR code</string>
+    <string name="orient_upright">Upright</string>
+    <string name="orient_land_cw">Landscape ↻</string>
+    <string name="orient_land_ccw">Landscape ↺</string>
+    <string name="panorama">Panorama (labels in a row)</string>
+    <string name="pano_off">Off</string>
+    <string name="pano_gap">Gap between labels</string>
+    <string name="pano_gap_mm">%1$.1f mm</string>
+    <string name="pano_no_booth">The photo booth prints one label, switch the panorama off first</string>
 </resources>

@@ -72,7 +72,41 @@ object ImageProcessor {
     class Result(
         val bits: ByteArray, val width: Int, val height: Int, val preview: Bitmap,
         val levels: ByteArray? = null, val red: ByteArray? = null,
-    )
+        // Landscape labels are laid out wide on screen and turned for the print: 0 none, 1 clockwise, 2 counter-clockwise
+        val rot: Int = 0,
+    ) {
+        fun withRot(r: Int) = Result(bits, width, height, preview, levels, red, r)
+
+        // Columns x0 until x1 as a result of their own (panorama: one label of the strip)
+        fun slice(x0: Int, x1: Int): Result {
+            fun cut(a: ByteArray): ByteArray {
+                val w = x1 - x0
+                val out = ByteArray(w * height)
+                for (y in 0 until height) System.arraycopy(a, y * width + x0, out, y * w, w)
+                return out
+            }
+            val pw = preview.width
+            val px0 = (x0.toLong() * pw / width).toInt(); val px1 = (x1.toLong() * pw / width).toInt()
+            return Result(cut(bits), x1 - x0, height, Bitmap.createBitmap(preview, px0, 0, maxOf(1, px1 - px0), preview.height),
+                levels?.let { cut(it) }, red?.let { cut(it) }, rot)
+        }
+
+        // The dots as they go to the printer (head width across), turned when rot is set
+        fun forPrint(): Result {
+            if (rot == 0) return this
+            fun turn(a: ByteArray): ByteArray {
+                val out = ByteArray(a.size)
+                for (y in 0 until height) for (x in 0 until width) {
+                    // new size: height wide, width tall
+                    val nx = if (rot == 1) height - 1 - y else y
+                    val ny = if (rot == 1) x else width - 1 - x
+                    out[ny * height + nx] = a[y * width + x]
+                }
+                return out
+            }
+            return Result(turn(bits), height, width, preview, levels?.let { turn(it) }, red?.let { turn(it) }, 0)
+        }
+    }
 
     // Bleed into the pre-printed frame / past the circle so no white gap remains
     private const val BLEED_MM = 0.6
@@ -91,9 +125,12 @@ object ImageProcessor {
     }
 
     // Sign mode: text instead of a photo
-    fun renderText(style: TextStyle, labelWmm: Double, labelHmm: Double, window: PhotoWindow?, frameColor: Int?, round: Boolean): Result {
+    fun renderText(
+        style: TextStyle, labelWmm: Double, labelHmm: Double, window: PhotoWindow?, frameColor: Int?, round: Boolean,
+        cap: Int = Niimbot.PRINTHEAD_PIXELS,
+    ): Result {
         val labelW = mmToPx(labelWmm)
-        val w = minOf(Niimbot.PRINTHEAD_PIXELS, labelW)
+        val w = minOf(cap, labelW)
         val h = mmToPx(labelHmm)
         val headLeft = (labelW - w) / 2
         val area = if (window != null) {
@@ -109,10 +146,10 @@ object ImageProcessor {
     // depth: nearness map of src (DepthMap), same aspect, any size
     fun render(
         src: Bitmap?, labelWmm: Double, labelHmm: Double, window: PhotoWindow?, frameColor: Int?, o: Options,
-        round: Boolean = false, depth: Bitmap? = null,
+        round: Boolean = false, depth: Bitmap? = null, cap: Int = Niimbot.PRINTHEAD_PIXELS,
     ): Result {
         val labelW = mmToPx(labelWmm)
-        val w = minOf(Niimbot.PRINTHEAD_PIXELS, labelW)
+        val w = minOf(cap, labelW)
         val h = mmToPx(labelHmm)
         // Wider labels sit centered under the print head
         val headLeft = (labelW - w) / 2

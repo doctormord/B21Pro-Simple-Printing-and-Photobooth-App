@@ -51,6 +51,22 @@ object Niimbot {
 
     class Packet(val cmd: Int, val data: ByteArray)
 
+    // Heartbeat reply 0xDD (type 1), 13 bytes as read from the firmware: u16 battery voltage, u16 adc1,
+    // u16 adc0, 2 zero bytes, temperature + 50, flags, battery level, flags, config byte. Only voltage,
+    // level and temperature are firmly identified; the unit of the voltage and the scale of the level
+    // are not known yet (the app shows them raw).
+    class Battery(val raw: Int, val level: Int, val tempC: Int, val bytes: ByteArray) {
+        // Plausible millivolts of a one- or two-cell pack; otherwise the number is shown as it comes
+        val volts: Double? get() = if (raw in 2500..9500) raw / 1000.0 else null
+        val low: Boolean get() = level == 0
+    }
+
+    fun parseBattery(d: ByteArray): Battery? {
+        if (d.size < 11) return null
+        fun u8(i: Int) = d[i].toInt() and 0xFF
+        return Battery((u8(0) shl 8) or u8(1), u8(10), u8(8) - 50, d)
+    }
+
     fun packet(cmd: Int, data: IntArray = IntArray(0)): ByteArray {
         var chk = cmd xor data.size
         for (b in data) chk = chk xor b

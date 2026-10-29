@@ -418,9 +418,10 @@ class B21Printer(
     // Prints a rendered label in its ink: 1-bit, gray levels, or red/black (twoColorRoll also sends
     // plain 1-bit labels such as signs through the two-colour mode, all black)
     suspend fun printResult(
-        r: ImageProcessor.Result, twoColorRoll: Boolean, density: Int, labelType: Int, copies: Int,
+        result: ImageProcessor.Result, twoColorRoll: Boolean, density: Int, labelType: Int, copies: Int,
         onProgress: (Float) -> Unit,
     ) {
+        val r = result.forPrint()
         val levels = r.levels
         if (levels == null && !twoColorRoll) return print(r.bits, r.width, r.height, density, labelType, copies, onProgress)
         for (c in 0 until copies) {
@@ -500,6 +501,10 @@ class B21Printer(
         }
         log("Printer buffer stayed full, sending anyway")
     }
+
+    // Battery state from the heartbeat; null when the printer does not answer
+    suspend fun readBattery(): Niimbot.Battery? =
+        runCatching { request(Niimbot.HEARTBEAT, intArrayOf(1), 1500) }.getOrNull()?.let { Niimbot.parseBattery(it) }
 
     class Roll(val barcode: String, val serial: String, val total: Int, val used: Int, val type: Int)
 

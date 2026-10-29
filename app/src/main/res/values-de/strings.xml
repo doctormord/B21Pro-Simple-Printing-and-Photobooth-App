@@ -211,4 +211,17 @@
     <string name="pano_gap">Abstand zwischen den Etiketten</string>
     <string name="pano_gap_mm">%1$.1f mm</string>
     <string name="pano_no_booth">Die Fotobox druckt ein Etikett, Panorama zuerst ausschalten</string>
+    <string name="booth_mode_single">Einzeln</string>
+    <string name="booth_mode_strip">Streifen ×3</string>
+    <string name="booth_mode_grid">Raster 2×2</string>
+    <string name="booth_frame_white">Weißer Rand</string>
+    <string name="booth_frame_black">Schwarzer Rand</string>
+    <string name="booth_shot_n">Foto %1$d von %2$d</string>
+    <string name="instant_black">Instant-Rahmen schwarz</string>
+    <string name="stamp_off">Stempel aus</string>
+    <string name="stamp_date">Datum</string>
+    <string name="stamp_text">Text</string>
+    <string name="stamp_hint">Stempeltext (max. 32)</string>
+    <string name="stamp_black">Schwarz</string>
+    <string name="stamp_white">Weiß</string>
 </resources>

@@ -4,6 +4,53 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.4.3 (2026-10-29)
+
+### Photo booth modes
+The booth takes a series of pictures, laid out like the strips of a photo booth: three one below the
+other, or four as a 2 × 2 grid. The layout is composed as one bitmap in label (or window) size and
+then rendered like a single photo, so all raster looks and print modes work, and the pictures need
+no print code of their own. The viewfinder frame has the aspect of one tile, so what is framed is
+what is printed. A strip needs a label taller than wide (a tile is then a wide band), a grid a label
+that is not wider than tall; wider labels would only give thin tiles. Labels with a pre-printed
+window use the window as the area, since the picture must stay inside it.
+
+The frame is white or black. The line at the bottom is set in the pixel font, in the opposite colour.
+If the line does not fit at 2 dots per pixel it is split in two at a space.
+
+### Stamp
+Every photo can carry the date and time or a text of up to 32 characters at the bottom right. It is
+drawn after the raster step, as dots (like the instant caption), so no dither can break the thin
+strokes. On a full photo it gets a one-dot outline in the opposite colour, which keeps it readable on
+any picture. On an instant frame it sits in the frame, and the frame can be black. The pixel font
+had only the letters needed for the charts; it now has A–Z, umlauts and the usual punctuation.
+
+## 1.4.2 (2026-10-28)
+
+### Battery
+The heartbeat reply (0xDD) carries the battery voltage (mV), a level byte and the temperature (byte −
+50 °C). The app polls it every 20 s while it is idle and shows it under the connect chip. On a
+2-cell pack the voltage read 7.13 V with level 1; the scale of the level byte (0–3 or 0–4) is not
+known yet, so the app shows the raw level and the voltage, and warns before a print at level 0.
+
+### Landscape and panorama
+For labels that are not square the picture is laid out wide on screen and turned for the print
+(clockwise or counter-clockwise); the print head is always the label's width. The panorama cuts one
+wide picture into 1–6 labels printed one after another; a gap setting makes up for the space between
+stuck-on labels. The direction of the turn on paper has not been checked.
+
+### Signs and crop
+Signs take line breaks and, optionally, a QR code (zxing-core): error correction Q, M or L, the
+highest at which a module is still at least 3 dots, modules in whole dots, quiet zone of 2 modules.
+When frame, label or orientation change, the crop is refitted around its centre, so nothing is cut
+off after cropping. The last booth picture stays on the canvas when the booth closes.
+
+### Red/black
+The speed toggle was disabled with the red switch and not restored afterwards, which left the app in
+the fast mode with *Fine* selected. It is now re-synced. The roll tag is read up to three times and
+again after a print error; if no tag is read, a red setting made by an earlier tag is reset. The
+print log shows the mode, the speed setting and the roll barcode.
+
 ## 1.4.1 (2026-10-27)
 
 ### Gray chart as bands

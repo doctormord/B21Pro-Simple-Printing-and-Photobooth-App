@@ -34,6 +34,18 @@ Open items, roughly in order of priority.
 - **Depth split on paper.** Print a portrait photo with background *other raster* (Amiga fine /
   Blue noise) and with *red*: does the seam show, does the boundary fit?
 
+## 1.4.2 / 1.4.3 (needs paper)
+
+- **Landscape direction.** Print a label in *Landscape ↻* and *↺* and check which way the picture
+  turns on the paper.
+- **Panorama.** Print with and without gap compensation; does the picture continue across the labels?
+- **QR codes.** Scan prints of several sizes and payload lengths.
+- **Strip and grid.** Print one of each; is the date line legible, and does the black frame (a lot of
+  black) print evenly?
+- **Stamp.** Check legibility on a photo with a busy bottom right corner, in gray and 1-bit.
+- **Black instant frame.** A large black area; check evenness and density.
+- **Battery level.** Read the level byte once with a fully charged pack and map it to percent.
+
 ## Fixes
 
 - **Memory Film bleed.** Overscan is off for window labels since 1.3.1, but the default 0.6 mm
@@ -55,6 +67,13 @@ Open items, roughly in order of priority.
 - The soft-edge fade width (12 % of the shorter side) is set from screen previews only.
 
 ## Ideas
+
+- **Save and reprint.** The debug console can only save the dots of the current print as a PNG and
+  print a 1-bit PNG. A proper version would keep the finished bits, gray levels and red plane of each
+  print (plus label size, density and mode) in a list of the last prints, with a thumbnail, to load
+  and reprint with one tap.
+- **Print confirmation with a preview** before the print starts (the booth review has one, the main
+  screen prints at once).
 
 - 1:1 preview zoom (tap the preview) so line screen and scanlines can be judged without moiré from
   the on-screen scaling.

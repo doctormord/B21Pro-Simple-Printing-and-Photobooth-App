@@ -17,6 +17,7 @@ import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import androidx.core.view.children
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -53,7 +54,12 @@ object Booth {
         val labelType: Int,
         val copies: Int,
         val orient: Int = 0,
-    )
+        val stampMode: Int = 0,
+        val stampText: String = "",
+    ) {
+        // Strips always carry a line at the bottom: the typed text, else the date
+        fun footer() = if (stampMode == 2 && stampText.isNotBlank()) stampText else PhotoStrip.dateText()
+    }
 
     var printer: B21Printer? = null
     var config: Config? = null
@@ -87,7 +93,7 @@ class BoothOverlay(context: Context, attrs: AttributeSet?) : View(context, attrs
         val left = 24 * dp
         val top = 84 * dp
         val right = width - 24 * dp
-        val bottom = height - 190 * dp
+        val bottom = height - 270 * dp
         val aw = right - left
         val ah = bottom - top
         val a = if (round) 1f else aspect
@@ -143,6 +149,23 @@ class BoothActivity : AppCompatActivity() {
     private var dismissJob: Job? = null
 
     private val timerSteps = intArrayOf(0, 3, 5, 10)
+    private var mode: Int
+        get() = prefs.getInt("boothMode", 0)
+        set(v) = prefs.edit().putInt("boothMode", v).apply()
+    private var blackFrame: Boolean
+        get() = prefs.getBoolean("boothBlack", false)
+        set(v) = prefs.edit().putBoolean("boothBlack", v).apply()
+    private lateinit var txtHint: TextView
+    private lateinit var toggleMode: com.google.android.material.button.MaterialButtonToggleGroup
+    private lateinit var toggleFrame: com.google.android.material.button.MaterialButtonToggleGroup
+    private val modeIds = intArrayOf(R.id.boothMode0, R.id.boothMode1, R.id.boothMode2)
+    // What the strip layout fills: the label, or the window of a window label
+    private val areaWmm get() = Booth.config!!.let { it.label.window?.w ?: it.widthMm }
+    private val areaHmm get() = Booth.config!!.let { it.label.window?.h ?: it.heightMm }
+    private val labelW get() = ImageProcessor.mmToPx(areaWmm).let {
+        if (Booth.config!!.orient == 0 && Booth.config!!.label.window == null) minOf(Niimbot.PRINTHEAD_PIXELS, it) else it }
+    private val labelH get() = ImageProcessor.mmToPx(areaHmm)
+
     private var timer: Int
         get() = prefs.getInt("boothTimer", 3)
         set(v) = prefs.edit().putInt("boothTimer", v).apply()
@@ -190,7 +213,25 @@ class BoothActivity : AppCompatActivity() {
         btnRight = findViewById(R.id.btnBoothNext)
 
         overlay.round = cfg.label.round
-        overlay.aspect = cfg.photoAspect
+        txtHint = findViewById(R.id.txtBoothHint)
+        toggleMode = findViewById(R.id.toggleBoothMode)
+        toggleFrame = findViewById(R.id.toggleBoothFrame)
+        for ((i, id) in modeIds.withIndex()) {
+            val ok = PhotoStrip.allowed(i, areaWmm, areaHmm, cfg.label.round)
+            findViewById<View>(id).isEnabled = ok
+            if (!ok && mode == i) mode = 0
+        }
+        // Modes that do not fit the label are greyed out; hide the row when only single is left
+        toggleMode.visibility = if (modeIds.drop(1).any { findViewById<View>(it).isEnabled }) View.VISIBLE else View.GONE
+        toggleMode.check(modeIds[mode])
+        toggleFrame.check(if (blackFrame) R.id.boothFrameBlack else R.id.boothFrameWhite)
+        toggleMode.addOnButtonCheckedListener { _, id, checked ->
+            if (checked && !busy) { mode = modeIds.indexOf(id); updateMode() }
+        }
+        toggleFrame.addOnButtonCheckedListener { _, id, checked ->
+            if (checked) { blackFrame = id == R.id.boothFrameBlack; updateMode() }
+        }
+        updateMode()
         val size = if (cfg.label.round) getString(R.string.size_round, fmt(cfg.widthMm))
             else getString(R.string.size_rect, fmt(cfg.widthMm), fmt(cfg.heightMm))
         val extras = buildList {
@@ -261,6 +302,15 @@ class BoothActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    // Viewfinder frames one shot; the frame choice only matters for strip and grid
+    private fun updateMode() {
+        val cfg = Booth.config ?: return
+        overlay.aspect = if (mode == PhotoStrip.SINGLE) cfg.photoAspect
+            else PhotoStrip.tileAspect(labelW, labelH, mode, cfg.footer())
+        toggleFrame.visibility = if (mode == PhotoStrip.SINGLE) View.GONE else View.VISIBLE
+        txtHint.setText(R.string.booth_hint)
+    }
+
     private fun fmt(v: Double) = if (v % 1.0 == 0.0) v.toInt().toString() else "%.1f".format(v)
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
@@ -302,48 +352,74 @@ class BoothActivity : AppCompatActivity() {
         if (busy || result.visibility == View.VISIBLE) return
         busy = true
         shutter.isEnabled = false
+        toggleMode.children.forEach { it.isEnabled = false }
         scope.launch {
-            for (n in timer downTo 1) {
-                txtCountdown.text = n.toString()
-                txtCountdown.visibility = View.VISIBLE
-                txtCountdown.scaleX = 1.4f; txtCountdown.scaleY = 1.4f; txtCountdown.alpha = 1f
-                txtCountdown.animate().scaleX(1f).scaleY(1f).alpha(0.6f).setDuration(900).start()
-                delay(1000)
-            }
-            txtCountdown.visibility = View.GONE
-            val useFlash = screenFlash
-            if (useFlash) {
-                // Screen flash: white at full brightness, wait for auto exposure to settle
-                window.attributes = window.attributes.apply { screenBrightness = 1f }
-                flash.animate().cancel()
-                flash.alpha = 1f
-                delay(550)
-            }
-            // Exactly what is on screen (mirrored for the front camera, like a mirror)
-            val bmp = previewView.bitmap
-            sound.play(MediaActionSound.SHUTTER_CLICK)
-            if (useFlash) {
-                window.attributes = window.attributes.apply {
-                    screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-                }
-            } else flash.alpha = 0.9f
-            flash.animate().alpha(0f).setDuration(450).start()
-            if (bmp == null) {
-                toast(getString(R.string.no_camera_image))
-                busy = false; shutter.isEnabled = true
-                return@launch
-            }
             val cfg = Booth.config ?: return@launch
+            val n = PhotoStrip.count(mode)
+            val shots = ArrayList<Bitmap>()
+            for (i in 0 until n) {
+                if (n > 1) txtHint.text = getString(R.string.booth_shot_n, i + 1, n)
+                // Later shots get at least a short countdown, even with the timer off
+                val secs = if (i == 0) timer else maxOf(timer, 2)
+                val bmp = capture(secs)
+                if (bmp == null) {
+                    toast(getString(R.string.no_camera_image))
+                    break
+                }
+                shots += withContext(Dispatchers.Default) { cropToFrame(bmp) }
+            }
+            if (shots.size < n) { finishSeries(); return@launch }
             val r = withContext(Dispatchers.Default) {
-                val crop = cropToFrame(bmp)
-                Booth.lastPhoto = crop
-                ImageProcessor.render(crop, cfg.widthMm, cfg.heightMm, cfg.label.window, cfg.label.frameColor,
-                    cfg.options, cfg.label.round, null,
+                val label = if (n == 1) shots[0] else PhotoStrip.compose(shots, labelW, labelH, mode, blackFrame, cfg.footer())
+                Booth.lastPhoto = label
+                // The composed label already has its frame, no instant frame on top
+                val opts = if (n == 1) cfg.options.copy(stamp = if (cfg.stampMode == 1) PhotoStrip.dateText() else cfg.options.stamp)
+                    else cfg.options.copy(instant = false, caption = "", softEdge = false, stamp = "")
+                ImageProcessor.render(label, cfg.widthMm, cfg.heightMm, cfg.label.window, cfg.label.frameColor,
+                    opts, cfg.label.round, null,
                     if (cfg.orient == 0) Niimbot.PRINTHEAD_PIXELS else Int.MAX_VALUE).withRot(cfg.orient)
             }
             shot = r
+            txtHint.setText(R.string.booth_hint)
             showResult(r)
         }
+    }
+
+    private fun finishSeries() {
+        busy = false; shutter.isEnabled = true
+        toggleMode.children.forEachIndexed { i, v ->
+            v.isEnabled = PhotoStrip.allowed(i, areaWmm, areaHmm, Booth.config!!.label.round)
+        }
+        txtHint.setText(R.string.booth_hint)
+    }
+
+    // Countdown, flash and grab of the preview as it looks on screen (mirrored for the front camera)
+    private suspend fun capture(secs: Int): Bitmap? {
+        for (n in secs downTo 1) {
+            txtCountdown.text = n.toString()
+            txtCountdown.visibility = View.VISIBLE
+            txtCountdown.scaleX = 1.4f; txtCountdown.scaleY = 1.4f; txtCountdown.alpha = 1f
+            txtCountdown.animate().scaleX(1f).scaleY(1f).alpha(0.6f).setDuration(900).start()
+            delay(1000)
+        }
+        txtCountdown.visibility = View.GONE
+        val useFlash = screenFlash
+        if (useFlash) {
+            // Screen flash: white at full brightness, wait for auto exposure to settle
+            window.attributes = window.attributes.apply { screenBrightness = 1f }
+            flash.animate().cancel()
+            flash.alpha = 1f
+            delay(550)
+        }
+        val bmp = previewView.bitmap
+        sound.play(MediaActionSound.SHUTTER_CLICK)
+        if (useFlash) {
+            window.attributes = window.attributes.apply {
+                screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+        } else flash.alpha = 0.9f
+        flash.animate().alpha(0f).setDuration(450).start()
+        return bmp
     }
 
     private fun cropToFrame(b: Bitmap): Bitmap {
@@ -394,8 +470,7 @@ class BoothActivity : AppCompatActivity() {
     private fun hideResult() {
         dismissJob?.cancel()
         result.animate().alpha(0f).setDuration(200).withEndAction { result.visibility = View.GONE }.start()
-        busy = false
-        shutter.isEnabled = true
+        finishSeries()
     }
 
     private fun printResult(r: ImageProcessor.Result) {

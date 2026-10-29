@@ -28,6 +28,9 @@ Everything else is checked in the emulator and on paper.
 - `Dither.kt`: blue-noise map (built on first use) and Riemersma; the calibratable 1-bit looks are
   `CAL_LOOKS` in MainActivity, each with its own profile key. `ImageProcessor.MEASURED` are the ones
   corrected even without their own curve (photo curve); coarse Amiga only with one (`measured()`).
+- `PhotoStrip.kt`: photo booth layouts (strip, 2 × 2 grid) composed into one bitmap that goes through
+  `ImageProcessor.render` as a normal photo; the stamp and the instant frame colour are applied in
+  `render` after the raster step. `TestChart.FONT` is the pixel font used for stamps and charts.
 - `DepthMap.kt` reads the depth map of Samsung portrait photos; `ImageStore` turns and crops it with
   the photo, `ImageProcessor.subjectMask` lays it over the label. Options.background decides what
   happens to the background (lighter/darker in `prepare`, another raster in `render`, red in `redMask`).

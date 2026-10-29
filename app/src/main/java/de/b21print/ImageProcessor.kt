@@ -30,6 +30,11 @@ object ImageProcessor {
         val invert: Boolean,
         val instant: Boolean,
         val caption: String,
+        // Date or short text, bottom right (pixel font, upper case). On a full photo it is punched into
+        // the picture in white or black; on an instant frame it sits in the frame, opposite to its colour.
+        val stamp: String = "",
+        val stampWhite: Boolean = false,
+        val instantBlack: Boolean = false,
         val offsetXMm: Double = 0.0,
         val offsetYMm: Double = 0.0,
         // The photo fades to white towards the edge of its area (circle on round labels)
@@ -228,18 +233,60 @@ object ImageProcessor {
         val red = tone?.let { redMask(bits, it, w, h, o, subject) }
         canvasBmp.recycle()
 
+        fun setDot(i: Int, v: Int) {
+            bits[i] = v.toByte(); levels?.set(i, if (v == 1) 15 else 0); red?.set(i, 0)
+        }
+        val black = o.instant && window == null && o.instantBlack
         if (o.instant && window == null) {
-            // Thin line around the photo so bright images still stand out; always solid black
-            val line = ByteArray(w * h)
-            for (x in area.left until area.right) {
-                line[area.top * w + x] = 1; line[(area.bottom - 1) * w + x] = 1
+            val mark = ByteArray(w * h)
+            if (black) {
+                // Black paper all around the photo
+                for (y in 0 until h) for (x in 0 until w) if (!area.contains(x, y)) setDot(y * w + x, 1)
+            } else {
+                // Thin line around the photo so bright images still stand out; always solid black
+                for (x in area.left until area.right) {
+                    mark[area.top * w + x] = 1; mark[(area.bottom - 1) * w + x] = 1
+                }
+                for (y in area.top until area.bottom) {
+                    mark[y * w + area.left] = 1; mark[y * w + area.right - 1] = 1
+                }
             }
-            for (y in area.top until area.bottom) {
-                line[y * w + area.left] = 1; line[y * w + area.right - 1] = 1
-            }
-            if (o.caption.isNotBlank()) drawCaption(line, w, h, area, o.caption)
-            for (i in line.indices) if (line[i].toInt() != 0) {
-                bits[i] = 1; levels?.set(i, 15); red?.set(i, 0)
+            if (o.caption.isNotBlank()) drawCaption(mark, w, h, area, o.caption)
+            for (i in mark.indices) if (mark[i].toInt() != 0) setDot(i, if (black) 0 else 1)
+        }
+        if (o.stamp.isNotBlank() && !round) {
+            val text = o.stamp.trim().take(32).uppercase()
+            // Window labels: inside the visible window, not the bleed around it
+            val box = if (window != null) edge else Rect(0, 0, w, h)
+            var s = maxOf(1, w / 160)
+            var pad = maxOf(6, 2 * s + 3)
+            while (s > 1 && PhotoStrip.textWidth(text, s) > box.width() - 2 * pad) { s--; pad = maxOf(6, 2 * s + 3) }
+            val tw = PhotoStrip.textWidth(text, s); val th = 7 * s
+            val x0 = box.right - pad - tw
+            // Instant: in the white field below the photo, if it is deep enough
+            val inField = window == null && o.instant && h - area.bottom >= th + 2 * pad
+            val y0 = (if (inField) h else if (window != null) box.bottom else area.bottom) - pad - th
+            if (x0 >= 0 && y0 >= 0) {
+                // Ink: instant frames take the opposite of the paper, a full photo the chosen colour
+                val white = if (inField) black else o.stampWhite
+                val glyph = ByteArray(w * h)
+                for ((n, ch) in text.withIndex()) TestChart.FONT[ch]?.let { g ->
+                    for ((ry, row) in g.withIndex()) for ((rx, v) in row.withIndex()) if (v == '#')
+                        for (yy in 0 until s) for (xx in 0 until s) {
+                            val px = x0 + n * 6 * s + rx * s + xx; val py = y0 + ry * s + yy
+                            if (px in 0 until w && py in 0 until h) glyph[py * w + px] = 1
+                        }
+                }
+                if (!inField) {
+                    // A one-dot outline in the opposite colour keeps the text readable on any picture
+                    val halo = maxOf(1, s / 2)
+                    for (y in 0 until h) for (x in 0 until w) if (glyph[y * w + x].toInt() != 0)
+                        for (dy in -halo..halo) for (dx in -halo..halo) {
+                            val px = x + dx; val py = y + dy
+                            if (px in 0 until w && py in 0 until h && glyph[py * w + px].toInt() == 0) setDot(py * w + px, if (white) 1 else 0)
+                        }
+                }
+                for (i in glyph.indices) if (glyph[i].toInt() != 0) setDot(i, if (white) 0 else 1)
             }
         }
 

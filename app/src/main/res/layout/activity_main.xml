@@ -262,6 +262,9 @@
                 <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchInstant"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="4dp" android:text="@string/instant_frame" />
+                <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchInstantBlack"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:visibility="gone" android:text="@string/instant_black" />
                 <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleOrient"
                     android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
                     android:visibility="gone" app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/orient0">
@@ -302,6 +305,38 @@
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:inputType="textCapSentences" android:maxLength="40" />
                 </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleStamp"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                    android:visibility="gone" app:singleSelection="true" app:selectionRequired="true">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/stamp0"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/stamp_off" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/stamp1"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/stamp_date" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/stamp2"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/stamp_text" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+                <com.google.android.material.textfield.TextInputLayout android:id="@+id/stampLayout"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:hint="@string/stamp_hint" android:visibility="gone"
+                    app:counterEnabled="true" app:counterMaxLength="32">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/editStamp"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:inputType="textCapCharacters" android:maxLines="1" android:maxLength="32" />
+                </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleStampColor"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                    android:visibility="gone" app:singleSelection="true" app:selectionRequired="true">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/stampBlack"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/stamp_black" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/stampWhite"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/stamp_white" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

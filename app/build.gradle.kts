@@ -10,8 +10,8 @@ android {
         applicationId = "de.b21print"
         minSdk = 28
         targetSdk = 34
-        versionCode = 53
-        versionName = "1.4.2"
+        versionCode = 54
+        versionName = "1.4.3"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

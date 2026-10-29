@@ -34,14 +34,23 @@ out of the printer. The gray prints were made with a patched printer firmware (s
   can print lighter, darker, in another raster or red
 - Red and black on two-colour rolls: a band of image tones, set with a slider, prints red
 - Soft edge: the photo fades to white towards its border, round on circle labels
-- Instant frame with an optional caption, printed by the app on plain labels
+- Instant frame with an optional caption, printed by the app on plain labels; the frame can be
+  black, with white caption and stamp
+- Stamp: the date and time or a short text (up to 32 characters, one line, pixel font) at the bottom
+  right, punched into the picture in white or black (also in the window of Memory Film labels), or
+  set into the instant frame
+- Landscape: non-square labels can be laid out and printed turned, clockwise or counter-clockwise
+- Panorama: one photo or sign spread over 1–6 labels printed one after another, with an optional gap
+  compensation for the space between stuck-on labels
 - Labels with a pre-printed frame, NB835 *Memory Film* (54 × 67 mm) and NB838 *Photo frame*
   (54 × 84 mm): only the window is printed, with a per-label offset that is remembered
 - Round labels and Memory Film print 0.6 mm past the edge so a slightly shifted roll leaves no
   white gap; on round labels *Overscan* raises this to 2 mm
 
 **Signs**
-- Short text, centered and sized automatically, 1–3 lines
+- Short text, centered and sized automatically, 1–3 lines (the field takes line breaks)
+- QR code instead of text: the largest error correction level whose modules still print at 3 dots
+  or more, whole-dot modules and a quiet zone
 - Three fonts, bold/italic/underline, five frame styles
 - Voice input
 - History of the last 50 printed signs, and saved templates
@@ -49,6 +58,11 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 **Photo booth** (the amber *Booth* button between *Photo* and *Sign*)
 - Full-screen front camera with the printable area marked
 - Countdown (off/3/5/10 s) and screen flash
+- Three modes: one picture; a strip of three pictures one below the other; a 2 × 2 grid. One press
+  of the shutter takes the whole series, like a photo booth. A strip needs a label taller than wide,
+  the grid a label that is not wider than tall; on labels with a pre-printed window the layout
+  fills the window. The frame between the pictures is white or black, and a line at the bottom
+  carries the date (or the stamp text) in the opposite colour
 - Review before printing: delete or print, then print again or take the next photo
 - Uses the label, frame, caption, raster and density settings from the main screen
 - Volume keys and Bluetooth selfie remotes work as a shutter
@@ -59,6 +73,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Gap, black mark, continuous and transparent paper; multiple copies
 - Print density 1–5 and two print modes: *Fine* (16 gray levels) and *Coarse* (1-bit dots)
 - Two-colour rolls (black + red)
+- Battery level, voltage and temperature of the printer under the connect chip; a warning before a
+  print when the battery is low
 
 **Layout**
 - Phone, tablet portrait and a two-column tablet landscape layout
@@ -217,7 +233,16 @@ calibrated yet.
 
 Signs use the same label and print settings:
 
-![Sign mode](docs/sign.png)
+![Sign mode with a QR code](docs/sign.png)
+
+## Photo booth
+
+![Strip of three pictures with the date](docs/booth-strip.png)
+
+The booth takes the picture series, builds the layout at print resolution (`PhotoStrip.kt`) and
+sends it through the same pipeline as any photo, so raster look, density and print mode apply to the
+whole strip. The pictures are cut to the shape of one tile; the viewfinder frame shows that shape.
+Landscape labels and round labels only take single pictures.
 
 ## Requirements
 
@@ -307,13 +332,19 @@ the BLE characteristic and shows every reply. It also offers:
   ones next to the long bands print lighter. For comparing printer firmware.
 - **Red/black test**: black ramp, red ramp, both side by side, 8-dot stripes and a 1-dot
   checkerboard in red and black.
+- **Save print bitmap** / **Print bitmap file**: the dots of the current print as a PNG (1:1, gray
+  levels as gray, no red) and the other way round, a PNG sent as a 1-bit print. For checking
+  patterns without paper; it does not keep the settings, so it is not a way to reprint a job.
+- **Heartbeat 2 / 3 / 4**: the other heartbeat requests; the replies are shown raw. Type 1 (battery,
+  voltage, temperature) runs by itself and fills the battery line in the main window.
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
   the console log and the log at the bottom of the main screen.
 - **Flash firmware**: sends a `.bin` firmware image over Bluetooth. The version is taken from the
   file name (e.g. `B21_Pro_3.10.bin` → 3.10). The printer verifies the image before committing it;
   a rejected or interrupted transfer leaves the old firmware running. Do not switch the printer off
   during the update.
-- **Log** with copy and clear buttons; it also shows the app's own log lines while open.
+- **Log** with copy and clear buttons; it also shows the app's own log lines while open. The same
+  lines go to Android's log under the tag `B21`, so `adb logcat -s B21` shows them live.
 
 <img src="docs/test-chart.png" width="45%" alt="Test chart on a Memory Film label">
 
@@ -360,11 +391,15 @@ main reference.
 | `PaperProfile.kt`                | paper profiles with their measured curves, stored in the preferences |
 | `ChartReader.kt`                 | reads a photo of a calibration chart (in-app `tools/calib.py`) |
 | `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration charts, gray wedge and load test |
-| `TextLabel.kt`                   | sign rendering                                                 |
+| `TextLabel.kt`                   | sign rendering, QR code                                        |
+| `PhotoStrip.kt`                  | photo booth layouts (strip, grid), pixel-font text            |
 | `Labels.kt`                      | label presets                                                  |
 | `MainActivity.kt`                | main screen                                                    |
 | `CropActivity.kt`, `CropView.kt` | crop screen                                                    |
 | `BoothActivity.kt`               | photo booth                                                    |
+
+The pixel font (5 × 7, upper case) is `TestChart.FONT`; it is used for the stamp, the strip's date
+line and the labels on the calibration charts.
 
 [history.md](history.md) records how the image pipeline got where it is, [backlog.md](backlog.md)
 lists what is still open.

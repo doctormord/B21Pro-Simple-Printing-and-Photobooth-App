@@ -287,6 +287,29 @@ class MainActivity : AppCompatActivity() {
         editHeight.doAfterTextChanged { onSizeEdited() }
         editCaption.doAfterTextChanged { scheduleRender() }
         switchInstant.setOnCheckedChangeListener { _, _ -> applyModeVisibility(); scheduleRender() }
+        // Stamp: date or short text bottom right; black instant frame
+        val stampIds = listOf(R.id.stamp0, R.id.stamp1, R.id.stamp2)
+        val toggleStamp = findViewById<MaterialButtonToggleGroup>(R.id.toggleStamp)
+        val toggleStampColor = findViewById<MaterialButtonToggleGroup>(R.id.toggleStampColor)
+        val editStamp = findViewById<TextInputEditText>(R.id.editStamp)
+        val switchInstantBlack = findViewById<MaterialSwitch>(R.id.switchInstantBlack)
+        toggleStamp.check(stampIds[prefs.getInt("stampMode", 0).coerceIn(0, 2)])
+        toggleStampColor.check(if (prefs.getBoolean("stampWhite", false)) R.id.stampWhite else R.id.stampBlack)
+        editStamp.setText(prefs.getString("stampText", ""))
+        switchInstantBlack.isChecked = prefs.getBoolean("instantBlack", false)
+        toggleStamp.addOnButtonCheckedListener { _, id, on ->
+            if (!on) return@addOnButtonCheckedListener
+            prefs.edit().putInt("stampMode", stampIds.indexOf(id)).apply()
+            applyModeVisibility(); scheduleRender()
+        }
+        toggleStampColor.addOnButtonCheckedListener { _, id, on ->
+            if (!on) return@addOnButtonCheckedListener
+            prefs.edit().putBoolean("stampWhite", id == R.id.stampWhite).apply(); scheduleRender()
+        }
+        editStamp.doAfterTextChanged { prefs.edit().putString("stampText", it?.toString().orEmpty()).apply(); scheduleRender() }
+        switchInstantBlack.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("instantBlack", on).apply(); scheduleRender()
+        }
         val txtPano = findViewById<TextView>(R.id.txtPano)
         val txtPanoGap = findViewById<TextView>(R.id.txtPanoGap)
         sliderPano.addOnChangeListener { _, v, _ ->
@@ -455,6 +478,11 @@ class MainActivity : AppCompatActivity() {
         show(R.id.switchOverscan, photo && selectedLabel.round)
         show(R.id.captionLayout, photo && !win && instantOn())
         show(R.id.panoBox, !win && !selectedLabel.round)
+        show(R.id.switchInstantBlack, photo && !win && !selectedLabel.round && instantOn())
+        val stampOk = photo && !selectedLabel.round
+        show(R.id.toggleStamp, stampOk)
+        show(R.id.stampLayout, stampOk && prefs.getInt("stampMode", 0) == 2)
+        show(R.id.toggleStampColor, stampOk && prefs.getInt("stampMode", 0) != 0 && (win || !instantOn()))
         show(R.id.panoGapBox, panoN() > 1)
     }
 
@@ -876,6 +904,9 @@ class MainActivity : AppCompatActivity() {
             bgRaster = bgRaster,
             bgMonoCurve = monoCurve(bgRaster),
             caption = editCaption.text?.toString().orEmpty(),
+            stamp = stampText(),
+            stampWhite = prefs.getBoolean("stampWhite", false),
+            instantBlack = prefs.getBoolean("instantBlack", false),
             offsetXMm = if (label.window != null) sliderOffsetX.value.toDouble() else 0.0,
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,
         )
@@ -905,6 +936,13 @@ class MainActivity : AppCompatActivity() {
         return sliderPano.value.toInt()
     }
     private fun panoGapMm() = if (panoN() > 1) sliderPanoGap.value.toDouble() else 0.0
+    // Date, the typed text or nothing, as set for the stamp
+    private fun stampText() = when (prefs.getInt("stampMode", 0)) {
+        1 -> PhotoStrip.dateText()
+        2 -> prefs.getString("stampText", "").orEmpty().trim()
+        else -> ""
+    }
+
     private fun instantOn() = switchInstant.isChecked && panoN() == 1
 
     // One label as the picture sees it (turned for landscape)
@@ -1185,6 +1223,8 @@ class MainActivity : AppCompatActivity() {
             labelType = intArrayOf(1, 2, 3, 5)[paperIndex],
             copies = num(editCopies.text, 1.0).toInt().coerceIn(1, 20),
             orient = orient(),
+            stampMode = prefs.getInt("stampMode", 0),
+            stampText = prefs.getString("stampText", "").orEmpty().trim(),
         )
         startActivity(Intent(this, BoothActivity::class.java))
     }

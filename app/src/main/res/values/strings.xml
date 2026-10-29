@@ -224,4 +224,17 @@
     <string name="pano_gap">Gap between labels</string>
     <string name="pano_gap_mm">%1$.1f mm</string>
     <string name="pano_no_booth">The photo booth prints one label, switch the panorama off first</string>
+    <string name="booth_mode_single">Single</string>
+    <string name="booth_mode_strip">Strip ×3</string>
+    <string name="booth_mode_grid">Grid 2×2</string>
+    <string name="booth_frame_white">White frame</string>
+    <string name="booth_frame_black">Black frame</string>
+    <string name="booth_shot_n">Photo %1$d of %2$d</string>
+    <string name="instant_black">Instant frame black</string>
+    <string name="stamp_off">Stamp off</string>
+    <string name="stamp_date">Date</string>
+    <string name="stamp_text">Text</string>
+    <string name="stamp_hint">Stamp text (max. 32)</string>
+    <string name="stamp_black">Black</string>
+    <string name="stamp_white">White</string>
 </resources>

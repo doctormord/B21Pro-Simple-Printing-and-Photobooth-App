@@ -49,6 +49,29 @@
     <LinearLayout android:id="@+id/boothBottom" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_gravity="bottom"
         android:orientation="vertical" android:gravity="center_horizontal" android:paddingBottom="28dp">
+        <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleBoothMode"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" app:singleSelection="true" app:selectionRequired="true">
+            <com.google.android.material.button.MaterialButton android:id="@+id/boothMode0"
+                style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="@string/booth_mode_single" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/boothMode1"
+                style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="@string/booth_mode_strip" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/boothMode2"
+                style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="@string/booth_mode_grid" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+        <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleBoothFrame"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" app:singleSelection="true" app:selectionRequired="true">
+            <com.google.android.material.button.MaterialButton android:id="@+id/boothFrameWhite"
+                style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="@string/booth_frame_white" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/boothFrameBlack"
+                style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="@string/booth_frame_black" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
         <TextView android:id="@+id/txtBoothHint" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:layout_marginBottom="14dp"
             android:textColor="#FFFFFF" android:shadowColor="#99000000" android:shadowRadius="4"

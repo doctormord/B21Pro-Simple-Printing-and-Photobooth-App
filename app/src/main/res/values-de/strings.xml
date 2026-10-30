@@ -204,8 +204,8 @@
     <string name="cal_discard_yes">Verwerfen</string>
     <string name="qr_code">QR-Code</string>
     <string name="orient_upright">Hoch</string>
-    <string name="orient_land_cw">Quer ↻</string>
-    <string name="orient_land_ccw">Quer ↺</string>
+    <string name="orient_land_cw">Quer</string>
+    <string name="orient_land_ccw">Quer</string>
     <string name="panorama">Panorama (Etiketten nebeneinander)</string>
     <string name="pano_off">Aus</string>
     <string name="pano_gap">Abstand zwischen den Etiketten</string>
@@ -249,6 +249,6 @@
     <string name="prints_clear">Alles löschen</string>
     <string name="prints_clear_ask">Alle letzten Drucke und die Liste der zuletzt gedruckten Schilder löschen? Vorlagen bleiben.</string>
     <string name="orient_hint">Tippen: Hoch oder Quer · lang drücken: andere Drehrichtung</string>
-    <string name="booth_mode_strip_v">Streifen ↕</string>
-    <string name="booth_mode_strip_h">Streifen ↔</string>
+    <string name="booth_mode_strip_v">Streifen</string>
+    <string name="booth_mode_strip_h">Streifen</string>
 </resources>

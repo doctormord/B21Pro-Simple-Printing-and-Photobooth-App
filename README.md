@@ -67,8 +67,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
   strength come from the main screen's background settings (at least 85 % strength for the effect).
   With nobody in the picture the effect is skipped
 - Three modes: one picture; a strip of three pictures one below the other; a 2 × 2 grid. One press
-  of the shutter takes the whole series, like a photo booth. On a label taller than wide the strip stacks the pictures (*Strip ↕*), on
-  a wider one it puts them side by side (*Strip ↔*, tall pictures; the label is printed turned). The
+  of the shutter takes the whole series, like a photo booth. On a label taller than wide the strip stacks the pictures (strip icon with rows), on
+  a wider one it puts them side by side (strip icon with columns, tall pictures; the label is printed turned). The
   orientation button switches between the two; a square label takes the grid only. On labels with a
   pre-printed window the layout fills the window. The frame between the pictures is white or black, and a line at the bottom
   carries the date (or the stamp text) in the opposite colour

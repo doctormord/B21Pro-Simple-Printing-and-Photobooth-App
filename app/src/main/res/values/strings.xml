@@ -217,8 +217,8 @@
     <string name="cal_discard_yes">Discard</string>
     <string name="qr_code">QR code</string>
     <string name="orient_upright">Upright</string>
-    <string name="orient_land_cw">Landscape ↻</string>
-    <string name="orient_land_ccw">Landscape ↺</string>
+    <string name="orient_land_cw">Landscape</string>
+    <string name="orient_land_ccw">Landscape</string>
     <string name="panorama">Panorama (labels in a row)</string>
     <string name="pano_off">Off</string>
     <string name="pano_gap">Gap between labels</string>
@@ -262,6 +262,6 @@
     <string name="prints_clear">Delete all</string>
     <string name="prints_clear_ask">Delete all recent prints and the list of recently printed signs? Templates stay.</string>
     <string name="orient_hint">Tap: upright or landscape · long press: the other direction</string>
-    <string name="booth_mode_strip_v">Strip ↕</string>
-    <string name="booth_mode_strip_h">Strip ↔</string>
+    <string name="booth_mode_strip_v">Strip</string>
+    <string name="booth_mode_strip_h">Strip</string>
 </resources>

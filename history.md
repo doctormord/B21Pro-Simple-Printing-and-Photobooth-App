@@ -16,6 +16,9 @@ list and the recent signs, and the debug console has a switch to keep no history
 console's log no longer runs into the dialog's rounded corners. A wider label can have a strip too
 (the pictures side by side). From the booth's review a pencil button opens the picture in the main
 screen, with its subject mask and the background setting; *Find subject* can be taken back.
+The booth's viewfinder frame takes its limits from the header and the controls (it touched the
+mode buttons before, and the title on tall frames), and the strip and orientation buttons show icons
+instead of arrow characters, which were too small to read.
 
 ### Portrait mode and subject mask
 The background options (lighter, darker, other raster, red) only worked for Samsung portrait photos,

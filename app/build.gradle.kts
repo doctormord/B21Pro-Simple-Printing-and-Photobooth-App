@@ -10,8 +10,8 @@ android {
         applicationId = "de.b21print"
         minSdk = 28
         targetSdk = 34
-        versionCode = 61
-        versionName = "1.5.0-beta7"
+        versionCode = 62
+        versionName = "1.5.0-beta8"
         // The segmentation model brings a 16-22 MB native library per ABI; phones and tablets from the
         // last years are all arm64
         ndk { abiFilters += "arm64-v8a" }

@@ -976,11 +976,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateOrientButton() {
-        findViewById<MaterialButton>(R.id.btnOrient).setText(when (prefs.getInt("orient", 0)) {
-            1 -> R.string.orient_land_cw
-            2 -> R.string.orient_land_ccw
-            else -> R.string.orient_upright
-        })
+        val btn = findViewById<MaterialButton>(R.id.btnOrient)
+        val o = prefs.getInt("orient", 0)
+        btn.setText(if (o == 0) R.string.orient_upright else R.string.orient_land_cw)
+        btn.setIconResource(when (o) { 1 -> R.drawable.ic_rotate_cw; 2 -> R.drawable.ic_rotate_ccw; else -> R.drawable.ic_rotate })
     }
 
     // 0 upright, 1/2 landscape (the picture is laid out wide and turned clockwise / counter-clockwise

@@ -83,6 +83,9 @@ class BoothOverlay(context: Context, attrs: AttributeSet?) : View(context, attrs
     var round = false
         set(v) { field = v; invalidate() }
     val frame = RectF()
+    // Where the frame may be, in view pixels; set from the header and the controls
+    var topLimit = 104f * resources.displayMetrics.density
+    var bottomLimit = -1f
 
     private val dp = resources.displayMetrics.density
     private val scrim = Paint().apply { color = Color.argb(150, 0, 0, 0) }
@@ -97,9 +100,9 @@ class BoothOverlay(context: Context, attrs: AttributeSet?) : View(context, attrs
         super.onLayout(changed, l, t, r, b)
         // Space between top bar and shutter
         val left = 24 * dp
-        val top = 104 * dp
+        val top = topLimit
         val right = width - 24 * dp
-        val bottom = height - 330 * dp
+        val bottom = if (bottomLimit > 0) bottomLimit else height - 330 * dp
         val aw = right - left
         val ah = bottom - top
         val a = if (round) 1f else aspect
@@ -210,6 +213,15 @@ class BoothActivity : AppCompatActivity() {
 
         previewView = findViewById(R.id.cameraPreview)
         overlay = findViewById(R.id.boothOverlay)
+        // The viewfinder frame stays between the header and the controls, wherever they end up
+        val fit = {
+            overlay.topLimit = top.bottom + 8 * resources.displayMetrics.density
+            overlay.bottomLimit = bottom.top - 16 * resources.displayMetrics.density
+            overlay.requestLayout()
+        }
+        val onBarChange = View.OnLayoutChangeListener { _, _, t, _, b, _, ot, _, ob -> if (t != ot || b != ob) fit() }
+        top.addOnLayoutChangeListener(onBarChange)
+        bottom.addOnLayoutChangeListener(onBarChange)
         shutter = findViewById(R.id.btnShutter)
         txtCountdown = findViewById(R.id.txtCountdown)
         flash = findViewById(R.id.boothFlash)
@@ -334,8 +346,11 @@ class BoothActivity : AppCompatActivity() {
         toggleMode.check(modeIds[mode])
         // The strip's direction follows the label's position: stacked on an upright label, side by side
         // on a landscape one (the orientation button switches between the two)
-        findViewById<MaterialButton>(R.id.boothMode1).setText(
-            if (labelW > labelH * 1.05) R.string.booth_mode_strip_h else R.string.booth_mode_strip_v)
+        findViewById<MaterialButton>(R.id.boothMode1).apply {
+            val wide = labelW > labelH * 1.05
+            setText(if (wide) R.string.booth_mode_strip_h else R.string.booth_mode_strip_v)
+            setIconResource(if (wide) R.drawable.ic_strip_h else R.drawable.ic_strip_v)
+        }
     }
 
     private fun updateInfo() {
@@ -352,7 +367,8 @@ class BoothActivity : AppCompatActivity() {
 
     private fun updateOrientButton() {
         val cfg = Booth.config ?: return
-        btnOrient.setText(when (cfg.orient) { 1 -> R.string.orient_land_cw; 2 -> R.string.orient_land_ccw; else -> R.string.orient_upright })
+        btnOrient.setText(if (cfg.orient == 0) R.string.orient_upright else R.string.orient_land_cw)
+        btnOrient.setIconResource(when (cfg.orient) { 1 -> R.drawable.ic_rotate_cw; 2 -> R.drawable.ic_rotate_ccw; else -> R.drawable.ic_rotate })
     }
 
     // What the photo area looks like in the viewfinder (same rules as the main screen)

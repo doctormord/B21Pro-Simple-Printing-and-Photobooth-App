@@ -237,4 +237,12 @@
     <string name="stamp_hint">Stamp text (max. 32)</string>
     <string name="stamp_black">Black</string>
     <string name="stamp_white">White</string>
+    <string name="prints_title">Recent prints</string>
+    <string name="prints_empty">Nothing printed yet. The last 20 prints show up here, with the exact dots that were sent.</string>
+    <string name="print_again_job">Print again</string>
+    <string name="prints_info">%1$s · density %2$d · %3$d×</string>
+    <string name="prints_mode_gray">Gray</string>
+    <string name="prints_mode_mono">1-bit</string>
+    <string name="prints_mode_red">Red/black</string>
+    <string name="prints_parts">%d labels</string>
 </resources>

@@ -73,6 +73,9 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Gap, black mark, continuous and transparent paper; multiple copies
 - Print density 1–5 and two print modes: *Fine* (16 gray levels) and *Coarse* (1-bit dots)
 - Two-colour rolls (black + red)
+- Recent prints: the last 20 prints (photos, signs, booth pictures) are kept as the exact dots that
+  were sent, with a thumbnail, and can be printed again with one tap, without the source or the
+  settings it came from
 - Battery level, voltage and temperature of the printer under the connect chip; a warning before a
   print when the battery is low
 
@@ -334,7 +337,7 @@ the BLE characteristic and shows every reply. It also offers:
   checkerboard in red and black.
 - **Save print bitmap** / **Print bitmap file**: the dots of the current print as a PNG (1:1, gray
   levels as gray, no red) and the other way round, a PNG sent as a 1-bit print. For checking
-  patterns without paper; it does not keep the settings, so it is not a way to reprint a job.
+  patterns without paper; for repeating a print use *Recent prints* instead.
 - **Heartbeat 2 / 3 / 4**: the other heartbeat requests; the replies are shown raw. Type 1 (battery,
   voltage, temperature) runs by itself and fills the battery line in the main window.
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
@@ -392,6 +395,7 @@ main reference.
 | `ChartReader.kt`                 | reads a photo of a calibration chart (in-app `tools/calib.py`) |
 | `TestChart.kt`                   | built-in test chart (port of `tools/mkchart.py`), calibration charts, gray wedge and load test |
 | `TextLabel.kt`                   | sign rendering, QR code                                        |
+| `PrintArchive.kt`                | the last 20 prints as finished dots, for printing again        |
 | `PhotoStrip.kt`                  | photo booth layouts (strip, grid), pixel-font text            |
 | `Labels.kt`                      | label presets                                                  |
 | `MainActivity.kt`                | main screen                                                    |

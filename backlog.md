@@ -68,10 +68,6 @@ Open items, roughly in order of priority.
 
 ## Ideas
 
-- **Save and reprint.** The debug console can only save the dots of the current print as a PNG and
-  print a 1-bit PNG. A proper version would keep the finished bits, gray levels and red plane of each
-  print (plus label size, density and mode) in a list of the last prints, with a thumbnail, to load
-  and reprint with one tap.
 - **Print confirmation with a preview** before the print starts (the booth review has one, the main
   screen prints at once).
 

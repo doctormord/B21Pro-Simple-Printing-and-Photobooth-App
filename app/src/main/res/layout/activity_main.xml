@@ -573,9 +573,15 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:max="1000" android:visibility="invisible" android:layout_marginBottom="8dp"
             app:trackCornerRadius="4dp" />
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint"
-            android:layout_width="match_parent" android:layout_height="64dp"
-            android:text="@string/print" android:textSize="17sp" app:icon="@drawable/ic_print"
-            app:iconGravity="textStart" app:cornerRadius="32dp" android:enabled="false" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnPrints"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="64dp" android:layout_height="64dp" android:layout_marginEnd="8dp"
+                app:icon="@drawable/ic_history" app:iconSize="28dp" android:contentDescription="@string/prints_title" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="64dp"
+                android:text="@string/print" android:textSize="17sp" app:icon="@drawable/ic_print"
+                app:iconGravity="textStart" app:cornerRadius="32dp" android:enabled="false" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

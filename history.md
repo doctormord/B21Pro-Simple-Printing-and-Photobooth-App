@@ -4,6 +4,17 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.5.0 (unreleased)
+
+### Recent prints
+Every successful print (photo, sign, booth picture) is stored as what was sent: the 1-bit dots, the
+gray levels and the red plane of each label of the job, gzipped, with density, paper type, copies
+and a thumbnail (`PrintArchive`). The last 20 are kept. Storing the finished dots instead of the
+source and the settings means a reprint is exactly the same print, whatever happened to the
+settings or the paper profile since; the price is that it cannot be edited. A panorama is kept as
+its labels, so it prints in the same order again. The printer's colour mode follows the stored
+job, so reprinting a gray job needs a printer that does gray, as the first print did.
+
 ## 1.4.3 (2026-10-29)
 
 ### Photo booth modes

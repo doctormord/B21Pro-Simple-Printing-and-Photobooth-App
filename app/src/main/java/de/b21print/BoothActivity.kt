@@ -493,6 +493,11 @@ class BoothActivity : AppCompatActivity() {
             // On error go back to review so it can be retried
             setStage(if (ok) Stage.DONE else Stage.REVIEW)
             if (ok) {
+                val title = "${cfg.label.title(this@BoothActivity)} · Booth"
+                withContext(Dispatchers.IO) {
+                    runCatching { PrintArchive.save(this@BoothActivity, listOf(r), r.preview, title, cfg.twoColorRoll,
+                        cfg.density, cfg.labelType, cfg.copies) }
+                }
                 txtStatus.setText(R.string.booth_done)
                 // Return to the camera after a short while
                 dismissJob = scope.launch { delay(8000); hideResult() }

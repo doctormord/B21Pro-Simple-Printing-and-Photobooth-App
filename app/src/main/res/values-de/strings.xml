@@ -224,4 +224,12 @@
     <string name="stamp_hint">Stempeltext (max. 32)</string>
     <string name="stamp_black">Schwarz</string>
     <string name="stamp_white">Weiß</string>
+    <string name="prints_title">Letzte Drucke</string>
+    <string name="prints_empty">Noch nichts gedruckt. Hier stehen die letzten 20 Drucke, mit genau den Punkten, die gesendet wurden.</string>
+    <string name="print_again_job">Nochmal drucken</string>
+    <string name="prints_info">%1$s · Dichte %2$d · %3$d×</string>
+    <string name="prints_mode_gray">Grau</string>
+    <string name="prints_mode_mono">1-Bit</string>
+    <string name="prints_mode_red">Rot/Schwarz</string>
+    <string name="prints_parts">%d Etiketten</string>
 </resources>

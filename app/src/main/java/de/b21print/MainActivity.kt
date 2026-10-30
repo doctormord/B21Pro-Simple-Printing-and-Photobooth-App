@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.RectF
 import android.graphics.ImageDecoder
@@ -177,6 +178,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnCrop).setOnClickListener { openCrop() }
         watchKeyboard()
         btnPrint.setOnClickListener { print() }
+        findViewById<View>(R.id.btnPrints).setOnClickListener { showPrints() }
 
         // Photo / sign
         val toggleApp = findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode)
@@ -1257,15 +1259,103 @@ class MainActivity : AppCompatActivity() {
             }
             log("Printing ${r.width}×${r.height} px, $mode, density $density, speed pref ${prefs.getInt("speed", 1)}, roll ${roll?.barcode ?: "none"} …")
             val parts = panoSlices(r)
-            if (parts.size == 1) p.printResult(r, twoColor, density, labelType, copies, it)
-            else {
-                val total = parts.size * copies
-                for (c in 0 until copies) parts.forEachIndexed { i, part ->
-                    val done = c * parts.size + i
-                    p.printResult(part, twoColor, density, labelType, 1) { f -> it((done + f) / total) }
-                }
+            printParts(p, parts, twoColor, density, labelType, copies, it)
+            val title = if (textStyle != null) textStyle.text.replace('\n', ' ').take(30)
+                else findViewById<TextView>(R.id.txtDims).text.toString()
+            withContext(Dispatchers.IO) {
+                runCatching { PrintArchive.save(this@MainActivity, parts, r.preview, title, twoColor, density, labelType, copies) }
             }
             textStyle?.let { history.addRecent(it) }
+        }
+    }
+
+    // Parts go out one after another, all copies of the set in turn (panorama: label 1, 2, 3, then again)
+    private suspend fun printParts(
+        p: B21Printer, parts: List<ImageProcessor.Result>, twoColor: Boolean, density: Int, labelType: Int,
+        copies: Int, onProgress: (Float) -> Unit,
+    ) {
+        if (parts.size == 1) return p.printResult(parts[0], twoColor, density, labelType, copies, onProgress)
+        val total = parts.size * copies
+        for (c in 0 until copies) parts.forEachIndexed { i, part ->
+            val done = c * parts.size + i
+            p.printResult(part, twoColor, density, labelType, 1) { f -> onProgress((done + f) / total) }
+        }
+    }
+
+    // The list of recent prints; a tap offers to print the same dots again
+    private fun showPrints() {
+        val dialog = BottomSheetDialog(this)
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16f).toInt(), dp(8f).toInt(), dp(16f).toInt(), dp(24f).toInt())
+        }
+        list.addView(TextView(this).apply {
+            text = getString(R.string.prints_title)
+            setTextAppearance(R.style.B21_SectionTitle)
+            setPadding(dp(4f).toInt(), dp(16f).toInt(), 0, dp(8f).toInt())
+        })
+        val entries = PrintArchive.list(this)
+        if (entries.isEmpty()) list.addView(TextView(this).apply {
+            text = getString(R.string.prints_empty); setPadding(dp(4f).toInt(), 0, 0, 0)
+        })
+        val fmt = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
+        for (e in entries) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8f).toInt(), dp(8f).toInt(), dp(8f).toInt(), dp(8f).toInt())
+                val tv = TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
+                setBackgroundResource(tv.resourceId)
+            }
+            row.addView(android.widget.ImageView(this).apply {
+                setImageBitmap(BitmapFactory.decodeFile(e.thumb.path))
+                adjustViewBounds = true
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(72f).toInt(), dp(72f).toInt()))
+            val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            texts.addView(TextView(this).apply { text = e.title; textSize = 16f; maxLines = 1 })
+            texts.addView(TextView(this).apply {
+                text = jobInfo(e) + "\n" + fmt.format(java.util.Date(e.id))
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
+            })
+            row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(12f).toInt() })
+            row.setOnClickListener { dialog.dismiss(); askReprint(e) }
+            list.addView(row)
+        }
+        dialog.setContentView(NestedScrollView(this).apply { addView(list) })
+        dialog.show()
+    }
+
+    private fun jobInfo(e: PrintArchive.Entry): String {
+        val mode = getString(when { e.twoColor -> R.string.prints_mode_red; e.gray -> R.string.prints_mode_gray; else -> R.string.prints_mode_mono })
+        val parts = if (e.parts > 1) " · " + getString(R.string.prints_parts, e.parts) else ""
+        return getString(R.string.prints_info, mode, e.density, e.copies) + parts
+    }
+
+    private fun askReprint(e: PrintArchive.Entry) {
+        val img = android.widget.ImageView(this).apply {
+            setImageBitmap(BitmapFactory.decodeFile(e.thumb.path))
+            adjustViewBounds = true
+            setPadding(dp(24f).toInt(), dp(16f).toInt(), dp(24f).toInt(), 0)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(e.title)
+            .setView(img)
+            .setMessage(jobInfo(e))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.delete) { _, _ -> PrintArchive.delete(e); showPrints() }
+            .setPositiveButton(R.string.print_again_job) { _, _ -> reprint(e) }
+            .show()
+    }
+
+    private fun reprint(e: PrintArchive.Entry) {
+        val p = printer ?: return toast(getString(R.string.printer_not_connected))
+        if (printing) return
+        printJob {
+            val parts = withContext(Dispatchers.IO) { PrintArchive.load(e) }
+            log("Printing again: ${e.title}, ${parts.size} part(s), density ${e.density}, roll ${roll?.barcode ?: "none"} …")
+            printParts(p, parts, e.twoColor, e.density, e.labelType, e.copies, it)
         }
     }
 

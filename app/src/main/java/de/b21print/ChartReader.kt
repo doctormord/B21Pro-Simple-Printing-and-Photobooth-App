@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import kotlin.math.abs
 import kotlin.math.pow
+import kotlin.math.sqrt
 
 // Reads a photo of a calibration chart (TestChart.calChart), in the app instead of tools/calib.py:
 // finds the four corner squares, maps the chart into the photo, and measures how dark each patch
@@ -36,13 +37,15 @@ object ChartReader {
             // The photo may show the label turned any way round
             for (k in 0 until 4) {
                 val hm = homography(chart, List(4) { quad[(it + k) % 4] }) ?: continue
-                val sc = score(measure(img, hm, lay, 5))
+                val sc = score(measure(img, hm, lay, 0f))
                 if (best == null || sc > best.first) best = sc to hm
             }
         }
         val (sc, hm) = best ?: return null
         if (sc < 1.2f) return null
-        val res = measure(img, hm, lay, 20)
+        // Photo pixels per chart dot: the final measurement looks at every photo pixel of a patch
+        val scale = scaleAt(hm, chart.sumOf { it.first.toDouble() }.toFloat() / 4, chart.sumOf { it.second.toDouble() }.toFloat() / 4)
+        val res = measure(img, hm, lay, scale)
         // Reflectance relative to the local white, scaled so the last patch is 1
         val r = FloatArray(res.size) { res[it].first / res[it].second }
         val black = r.last()
@@ -53,7 +56,7 @@ object ChartReader {
             run = maxOf(run, ((1f - r[i]) / (1f - black)).coerceIn(0f, 1f).let { if (it < 0.04f) 0f else it })
             if (i == 0) 0f else if (i == r.size - 1) 1f else run
         }
-        return Reading(dark, rectify(img, hm, w, h, lay))
+        return Reading(dark, rectify(img, hm, w, h, lay, scale))
     }
 
     private class Img(val v: FloatArray, val w: Int, val h: Int) {
@@ -176,42 +179,65 @@ object ChartReader {
     // where the heat spreads into the white
     private fun inner(lay: TestChart.CalLayout) = if (lay.bands) floatArrayOf(0.05f, 0.95f, 0.3f, 0.7f) else floatArrayOf(0.2f, 0.8f, 0.2f, 0.8f)
 
+    // Photo pixels per chart dot at a point of the chart
+    private fun scaleAt(hm: FloatArray, x: Float, y: Float): Float {
+        fun p(cx: Float, cy: Float): Pair<Float, Float> {
+            val z = hm[6] * cx + hm[7] * cy + 1f
+            return (hm[0] * cx + hm[1] * cy + hm[2]) / z to (hm[3] * cx + hm[4] * cy + hm[5]) / z
+        }
+        val (ox, oy) = p(x, y); val (ax, ay) = p(x + 1, y); val (bx, by) = p(x, y + 1)
+        return sqrt(abs((ax - ox) * (by - oy) - (ay - oy) * (bx - ox))).coerceAtLeast(0.05f)
+    }
+
+    // How many samples to take across `dots` chart dots: scale = photo pixels per dot, or 0 for the
+    // coarse search. With scale every photo pixel counts, so a dither pattern (a few photo pixels per
+    // period) is averaged over its area instead of being point-sampled, which would alias.
+    private fun count(dots: Float, scale: Float, coarse: Int, max: Int) =
+        if (scale <= 0f) coarse else Math.ceil((dots * scale).toDouble()).toInt().coerceIn(coarse, max)
+
     // Per patch: mean of its inner part and median of the gutter centre lines around it
-    private fun measure(img: Img, hm: FloatArray, lay: TestChart.CalLayout, k: Int): List<Pair<Float, Float>> =
-        if (lay.bands) measureBands(img, hm, lay, k) else lay.patches.map { b ->
+    private fun measure(img: Img, hm: FloatArray, lay: TestChart.CalLayout, scale: Float): List<Pair<Float, Float>> =
+        if (lay.bands) measureBands(img, hm, lay, scale) else lay.patches.map { b ->
+            val (x0, x1, y0, y1) = inner(lay).toList()
+            val nx = count(b.w * (x1 - x0), scale, 5, 300); val ny = count(b.h * (y1 - y0), scale, 5, 300)
             var sum = 0f
-            for (j in 0 until k) for (i in 0 until k) {
-                sum += img.chart(hm, b.x + b.w * (0.2f + 0.6f * (i + 0.5f) / k), b.y + b.h * (0.2f + 0.6f * (j + 0.5f) / k))
+            for (j in 0 until ny) for (i in 0 until nx) {
+                sum += img.chart(hm, b.x + b.w * (x0 + (x1 - x0) * (i + 0.5f) / nx), b.y + b.h * (y0 + (y1 - y0) * (j + 0.5f) / ny))
             }
             val g = lay.gut / 2f
+            val nh = count(b.w.toFloat(), scale, 5, 600); val nv = count(b.h.toFloat(), scale, 5, 600)
             val ring = ArrayList<Float>()
-            for (i in 0 until k) {
-                val fx = b.x + b.w * (i + 0.5f) / k; val fy = b.y + b.h * (i + 0.5f) / k
+            for (i in 0 until nh) {
+                val fx = b.x + b.w * (i + 0.5f) / nh
                 ring += img.chart(hm, fx, b.y - g); ring += img.chart(hm, fx, b.y + b.h + g)
+            }
+            for (i in 0 until nv) {
+                val fy = b.y + b.h * (i + 0.5f) / nv
                 ring += img.chart(hm, b.x - g, fy); ring += img.chart(hm, b.x + b.w + g, fy)
             }
             ring.sort()
-            sum / (k * k) to ring[ring.size / 2]
+            sum / (nx * ny) to ring[ring.size / 2]
         }
 
     // Per band: mean of its inner part; white: the mean of the medians left and right of it, so a light
     // falling off across the label is taken at the band's middle
-    private fun measureBands(img: Img, hm: FloatArray, lay: TestChart.CalLayout, k: Int): List<Pair<Float, Float>> {
+    private fun measureBands(img: Img, hm: FloatArray, lay: TestChart.CalLayout, scale: Float): List<Pair<Float, Float>> {
         val (x0, x1, y0, y1) = inner(lay).toList()
-        val rows = maxOf(2, k / 4)
         return lay.patches.map { b ->
+            val nx = count(b.w * (x1 - x0), scale, 20, 1200); val rows = count(b.h * (y1 - y0), scale, 2, 60)
             var sum = 0f
-            for (j in 0 until rows) for (i in 0 until 4 * k) {
-                sum += img.chart(hm, b.x + b.w * (x0 + (x1 - x0) * (i + 0.5f) / (4 * k)), b.y + b.h * (y0 + (y1 - y0) * (j + 0.5f) / rows))
+            for (j in 0 until rows) for (i in 0 until nx) {
+                sum += img.chart(hm, b.x + b.w * (x0 + (x1 - x0) * (i + 0.5f) / nx), b.y + b.h * (y0 + (y1 - y0) * (j + 0.5f) / rows))
             }
             val strip = (b.x - lay.gut - lay.margin).toFloat()
+            val nw = count(strip * 0.6f, scale, 5, 300)
             fun white(xa: Float): Float {
                 val v = ArrayList<Float>()
-                for (j in 0 until rows) for (i in 0 until k) v += img.chart(hm, xa + strip * (0.2f + 0.6f * (i + 0.5f) / k), b.y + b.h * (y0 + (y1 - y0) * (j + 0.5f) / rows))
+                for (j in 0 until rows) for (i in 0 until nw) v += img.chart(hm, xa + strip * (0.2f + 0.6f * (i + 0.5f) / nw), b.y + b.h * (y0 + (y1 - y0) * (j + 0.5f) / rows))
                 v.sort()
                 return v[v.size / 2]
             }
-            sum / (rows * 4 * k) to (white(lay.margin.toFloat()) + white((b.x + b.w + lay.gut).toFloat())) / 2
+            sum / (rows * nx) to (white(lay.margin.toFloat()) + white((b.x + b.w + lay.gut).toFloat())) / 2
         }
     }
 
@@ -227,12 +253,19 @@ object ChartReader {
         return (spearman + (white - p.last()) / maxOf(white, 1e-6)).toFloat()
     }
 
-    // The chart as found in the photo, with the sampled areas outlined, so a wrong match is visible
-    private fun rectify(img: Img, hm: FloatArray, w: Int, h: Int, lay: TestChart.CalLayout): Bitmap {
-        val s = 2
+    // The chart as found in the photo, with the sampled areas outlined, so a wrong match is visible.
+    // Each output pixel is the average of the photo pixels it covers (in linear light), not one point of
+    // them: a photo has several pixels per chart dot, and point sampling would show a moiré.
+    private fun rectify(img: Img, hm: FloatArray, w: Int, h: Int, lay: TestChart.CalLayout, scale: Float): Bitmap {
+        val s = if (w <= 700) 1 else 2
         val bw = w / s; val bh = h / s
+        val ss = Math.ceil((scale * s).toDouble()).toInt().coerceIn(1, 6)
         val out = IntArray(bw * bh) { i ->
-            val g = (255 * srgb(img.chart(hm, (i % bw + 0.5f) * s, (i / bw + 0.5f) * s))).toInt().coerceIn(0, 255)
+            var sum = 0f
+            for (j in 0 until ss) for (k in 0 until ss) {
+                sum += img.chart(hm, ((i % bw) + (k + 0.5f) / ss) * s, ((i / bw) + (j + 0.5f) / ss) * s)
+            }
+            val g = (255 * srgb(sum / (ss * ss))).toInt().coerceIn(0, 255)
             Color.rgb(g, g, g)
         }
         val bmp = Bitmap.createBitmap(out, bw, bh, Bitmap.Config.ARGB_8888).copy(Bitmap.Config.ARGB_8888, true)

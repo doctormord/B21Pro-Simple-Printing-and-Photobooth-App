@@ -1704,6 +1704,13 @@ class MainActivity : AppCompatActivity() {
             })
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
             addView(button("Camera info") { runCatching { CameraInfo.describe(this@MainActivity) }.getOrElse { listOf("Camera info failed: ${it.message}") }.asReversed().forEach { appendLog(it) } })
+            addView(button("Calibration self-test") {
+                scope.launch {
+                    appendLog("Reading a synthetic photo of each calibration chart …")
+                    withContext(Dispatchers.Default) { CalSelfTest.run(CAL_LOOKS.map { it.third to it.second }) }
+                        .forEach { appendLog(it) }
+                }
+            })
             addView(LinearLayout(this@MainActivity).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 addView(TextView(this@MainActivity).apply { text = "Keep history of prints (recent prints, signs)" },
@@ -2080,6 +2087,11 @@ class MainActivity : AppCompatActivity() {
         fun button(label: Int, onClick: () -> Unit) =
             MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
                 setText(label); setOnClickListener { onClick() }
+                // Two buttons side by side in a dialog are narrow: little padding, one line
+                setPadding(dp(8f).toInt(), paddingTop, dp(8f).toInt(), paddingBottom)
+                iconPadding = dp(6f).toInt()
+                maxLines = 1
+                isSingleLine = true
             }
         val status = TextView(this).apply { setPadding(0, gap, 0, gap) }
         val imgChart = ImageView(this).apply { adjustViewBounds = true; visibility = View.GONE }

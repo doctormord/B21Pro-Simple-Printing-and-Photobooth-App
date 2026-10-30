@@ -93,7 +93,7 @@ class BoothOverlay(context: Context, attrs: AttributeSet?) : View(context, attrs
         val left = 24 * dp
         val top = 84 * dp
         val right = width - 24 * dp
-        val bottom = height - 270 * dp
+        val bottom = height - 330 * dp
         val aw = right - left
         val ah = bottom - top
         val a = if (round) 1f else aspect
@@ -155,6 +155,11 @@ class BoothActivity : AppCompatActivity() {
     private var blackFrame: Boolean
         get() = prefs.getBoolean("boothBlack", false)
         set(v) = prefs.edit().putBoolean("boothBlack", v).apply()
+    // 0 off, 1 background lighter, 2 darker, 3 other raster, 4 red (two-colour roll only)
+    private var portrait: Int
+        get() = prefs.getInt("boothPortrait", 0)
+        set(v) = prefs.edit().putInt("boothPortrait", v).apply()
+    private lateinit var btnPortrait: MaterialButton
     private lateinit var txtHint: TextView
     private lateinit var toggleMode: com.google.android.material.button.MaterialButtonToggleGroup
     private lateinit var toggleFrame: com.google.android.material.button.MaterialButtonToggleGroup
@@ -214,6 +219,16 @@ class BoothActivity : AppCompatActivity() {
 
         overlay.round = cfg.label.round
         txtHint = findViewById(R.id.txtBoothHint)
+        btnPortrait = findViewById(R.id.btnBoothPortrait)
+        if (portrait == 4 && !cfg.twoColorRoll) portrait = 0
+        updatePortraitButton()
+        btnPortrait.setOnClickListener {
+            if (busy) return@setOnClickListener
+            var next = (portrait + 1) % 5
+            if (next == 4 && !cfg.twoColorRoll) next = 0
+            portrait = next
+            updatePortraitButton()
+        }
         toggleMode = findViewById(R.id.toggleBoothMode)
         toggleFrame = findViewById(R.id.toggleBoothFrame)
         for ((i, id) in modeIds.withIndex()) {
@@ -302,6 +317,10 @@ class BoothActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    private fun updatePortraitButton() {
+        btnPortrait.text = resources.getStringArray(R.array.booth_portrait)[portrait]
+    }
+
     // Viewfinder frames one shot; the frame choice only matters for strip and grid
     private fun updateMode() {
         val cfg = Booth.config ?: return
@@ -353,10 +372,13 @@ class BoothActivity : AppCompatActivity() {
         busy = true
         shutter.isEnabled = false
         toggleMode.children.forEach { it.isEnabled = false }
+        btnPortrait.isEnabled = false
         scope.launch {
             val cfg = Booth.config ?: return@launch
             val n = PhotoStrip.count(mode)
             val shots = ArrayList<Bitmap>()
+            val masks = ArrayList<Bitmap?>()
+            val usePortrait = portrait != 0
             for (i in 0 until n) {
                 if (n > 1) txtHint.text = getString(R.string.booth_shot_n, i + 1, n)
                 // Later shots get at least a short countdown, even with the timer off
@@ -366,17 +388,28 @@ class BoothActivity : AppCompatActivity() {
                     toast(getString(R.string.no_camera_image))
                     break
                 }
-                shots += withContext(Dispatchers.Default) { cropToFrame(bmp) }
+                val crop = withContext(Dispatchers.Default) { cropToFrame(bmp) }
+                shots += crop
+                if (usePortrait) masks += SubjectMask.find(crop)
             }
             if (shots.size < n) { finishSeries(); return@launch }
+            // The subject masks, laid out like the pictures; without all of them the effect is skipped
+            val maskImg = if (usePortrait && masks.all { it != null }) withContext(Dispatchers.Default) {
+                if (n == 1) masks[0] else PhotoStrip.composeMask(masks.filterNotNull(), labelW, labelH, mode, cfg.footer())
+            } else null
+            if (usePortrait && maskImg == null) toast(getString(R.string.subject_not_found))
             val r = withContext(Dispatchers.Default) {
                 val label = if (n == 1) shots[0] else PhotoStrip.compose(shots, labelW, labelH, mode, blackFrame, cfg.footer())
                 Booth.lastPhoto = label
                 // The composed label already has its frame, no instant frame on top
-                val opts = if (n == 1) cfg.options.copy(stamp = if (cfg.stampMode == 1) PhotoStrip.dateText() else cfg.options.stamp)
+                val base = if (n == 1) cfg.options.copy(stamp = if (cfg.stampMode == 1) PhotoStrip.dateText() else cfg.options.stamp)
                     else cfg.options.copy(instant = false, caption = "", softEdge = false, stamp = "")
+                // Portrait wants a clear effect, so the strength is at least 85 %
+                val opts = if (maskImg != null) base.copy(background = portraitBackground(), depthCut = 0.5f,
+                        bgStrength = maxOf(base.bgStrength, 0.85f))
+                    else base.copy(background = ImageProcessor.Background.SAME)
                 ImageProcessor.render(label, cfg.widthMm, cfg.heightMm, cfg.label.window, cfg.label.frameColor,
-                    opts, cfg.label.round, null,
+                    opts, cfg.label.round, maskImg,
                     if (cfg.orient == 0) Niimbot.PRINTHEAD_PIXELS else Int.MAX_VALUE).withRot(cfg.orient)
             }
             shot = r
@@ -385,8 +418,15 @@ class BoothActivity : AppCompatActivity() {
         }
     }
 
+    private fun portraitBackground() = when (portrait) {
+        1 -> ImageProcessor.Background.LIGHTER
+        2 -> ImageProcessor.Background.DARKER
+        3 -> ImageProcessor.Background.LOOK
+        else -> ImageProcessor.Background.RED
+    }
+
     private fun finishSeries() {
-        busy = false; shutter.isEnabled = true
+        busy = false; shutter.isEnabled = true; btnPortrait.isEnabled = true
         toggleMode.children.forEachIndexed { i, v ->
             v.isEnabled = PhotoStrip.allowed(i, areaWmm, areaHmm, Booth.config!!.label.round)
         }

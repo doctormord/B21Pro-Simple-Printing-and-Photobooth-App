@@ -236,4 +236,14 @@
     <string name="text_red">Text: rot</string>
     <string name="frame_black">Rahmen: schwarz</string>
     <string name="frame_red">Rahmen: rot</string>
+    <string name="find_subject">Motiv freistellen</string>
+    <string name="finding_subject">Suche das Motiv …</string>
+    <string name="subject_not_found">Kein Motiv gefunden</string>
+    <string-array name="booth_portrait">
+        <item>Porträt: aus</item>
+        <item>Porträt: heller</item>
+        <item>Porträt: dunkler</item>
+        <item>Porträt: Raster</item>
+        <item>Porträt: rot</item>
+    </string-array>
 </resources>

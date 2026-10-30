@@ -249,4 +249,14 @@
     <string name="text_red">Text: red</string>
     <string name="frame_black">Frame: black</string>
     <string name="frame_red">Frame: red</string>
+    <string name="find_subject">Find subject</string>
+    <string name="finding_subject">Searching for the subject …</string>
+    <string name="subject_not_found">No subject found</string>
+    <string-array name="booth_portrait">
+        <item>Portrait: off</item>
+        <item>Portrait: lighter</item>
+        <item>Portrait: darker</item>
+        <item>Portrait: raster</item>
+        <item>Portrait: red</item>
+    </string-array>
 </resources>

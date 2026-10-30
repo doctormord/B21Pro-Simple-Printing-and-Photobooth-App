@@ -431,6 +431,10 @@
                 <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchSoftEdge"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:text="@string/soft_edge" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnFindSubject"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:text="@string/find_subject" android:visibility="gone" />
                 <!-- Depth split, only for photos with a depth map (portrait photos) -->
                 <LinearLayout android:id="@+id/depthBox" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical"

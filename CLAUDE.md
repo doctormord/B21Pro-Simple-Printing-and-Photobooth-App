@@ -85,6 +85,9 @@ Things that look like bugs but are deliberate:
   log under the tag `B21`, so it can be read with `adb logcat -s B21` without touching the device. A
   new diagnostic that only fills a text view is not finished.
 - Comments explain why, not what; match the existing density.
+- ML Kit's manifest merges `INTERNET` and `ACCESS_NETWORK_STATE`; `AndroidManifest.xml` removes them
+  again (`tools:node="remove"`). Keep it that way when updating dependencies: the app has no network
+  access. Check the merged manifest after a dependency change.
 - Settings that should survive a restart go into the `prefs` SharedPreferences.
 
 ## Checking changes in the emulator

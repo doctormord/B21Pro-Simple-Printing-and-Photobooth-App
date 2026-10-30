@@ -92,16 +92,11 @@ object PhotoStrip {
         return t.width().toFloat() / t.height()
     }
 
-    fun compose(photos: List<Bitmap>, w: Int, h: Int, mode: Int, black: Boolean, footer: String?): Bitmap {
-        val p = plan(w, h, mode, footer)
-        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val c = Canvas(out)
-        val bg = if (black) Color.BLACK else Color.WHITE
-        c.drawColor(bg)
+    // Cover: the centre part of each picture with the tile's aspect
+    private fun drawTiles(c: Canvas, p: Plan, photos: List<Bitmap>) {
         val paint = Paint(Paint.FILTER_BITMAP_FLAG)
         for ((i, t) in p.tiles.withIndex()) {
             val src = photos[i]
-            // Cover: take the centre part with the tile's aspect
             val ta = t.width().toFloat() / t.height()
             val sa = src.width.toFloat() / src.height
             val sw = if (sa > ta) (src.height * ta).toInt() else src.width
@@ -109,6 +104,26 @@ object PhotoStrip {
             val sx = (src.width - sw) / 2; val sy = (src.height - sh) / 2
             c.drawBitmap(src, Rect(sx, sy, sx + sw, sy + sh), t, paint)
         }
+    }
+
+    // The subject masks laid out like the pictures. Frame and footer count as subject (white), so a
+    // background effect leaves them alone: a black frame must not turn red with the background.
+    fun composeMask(masks: List<Bitmap>, w: Int, h: Int, mode: Int, footer: String?): Bitmap {
+        val p = plan(w, h, mode, footer)
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        c.drawColor(Color.WHITE)
+        drawTiles(c, p, masks)
+        return out
+    }
+
+    fun compose(photos: List<Bitmap>, w: Int, h: Int, mode: Int, black: Boolean, footer: String?): Bitmap {
+        val p = plan(w, h, mode, footer)
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        val bg = if (black) Color.BLACK else Color.WHITE
+        c.drawColor(bg)
+        drawTiles(c, p, photos)
         p.footer?.let { f ->
             val ink = Paint().apply { color = if (black) Color.WHITE else Color.BLACK }
             val s = p.textScale

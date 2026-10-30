@@ -31,7 +31,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Paper profiles: tone curves measured in the app from a photo of a printed chart, picked
   automatically by the roll's RFID tag
 - Portrait photos from Samsung phones: the depth map splits subject and background; the background
-  can print lighter, darker, in another raster or red
+  can print lighter, darker, in another raster or red. Photos without a depth map get the same with
+  *Find subject*: an on-device model finds the person and the mask is used like a depth map
 - Red and black on two-colour rolls: a band of image tones, set with a slider, prints red
 - Soft edge: the photo fades to white towards its border, round on circle labels
 - Instant frame with an optional caption, printed by the app on plain labels; the frame can be
@@ -59,6 +60,10 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 **Photo booth** (the amber *Booth* button between *Photo* and *Sign*)
 - Full-screen front camera with the printable area marked
 - Countdown (off/3/5/10 s) and screen flash
+- Portrait: a button cycles the background of the picture through *off*, *lighter*, *darker*, *other
+  raster* and (on a two-colour roll) *red*. An on-device model cuts out the person; the raster and the
+  strength come from the main screen's background settings (at least 85 % strength for the effect).
+  With nobody in the picture the effect is skipped
 - Three modes: one picture; a strip of three pictures one below the other; a 2 × 2 grid. One press
   of the shutter takes the whole series, like a photo booth. A strip needs a label taller than wide,
   the grid a label that is not wider than tall; on labels with a pre-printed window the layout
@@ -250,6 +255,9 @@ again with the stored density, paper type and number of copies, or to delete it.
 
 ![Strip of three pictures with the date](docs/booth-strip.png)
 
+The portrait button works with strip and grid too: each picture gets its own mask, and the frame and
+the date line count as subject, so a black frame does not turn red with the background.
+
 The booth takes the picture series, builds the layout at print resolution (`PhotoStrip.kt`) and
 sends it through the same pipeline as any photo, so raster look, density and print mode apply to the
 whole strip. The pictures are cut to the shape of one tile; the viewfinder frame shows that shape.
@@ -257,7 +265,8 @@ Landscape labels and round labels only take single pictures.
 
 ## Requirements
 
-- Android 9 or newer with Bluetooth LE
+- Android 9 or newer with Bluetooth LE, on an arm64 device (the segmentation model's native library
+  is included for arm64 only, which keeps the APK at about 36 MB)
 - A NIIMBOT B21 Pro (other B21 variants may work, untested)
 
 The app works with the printer's original firmware; nothing in it needs a patched one. It does not
@@ -418,6 +427,15 @@ line and the labels on the calibration charts.
 
 [history.md](history.md) records how the image pipeline got where it is, [backlog.md](backlog.md)
 lists what is still open.
+
+## Libraries
+
+- [ZXing core](https://github.com/zxing/zxing) (Apache-2.0): QR codes.
+- [ML Kit Selfie Segmentation](https://developers.google.com/ml-kit/vision/selfie-segmentation/android)
+  (bundled model, runs on the device, under Google's ML Kit terms): the subject mask. The library's
+  manifest asks for network access for its usage metrics; the app's manifest removes the `INTERNET`
+  and `ACCESS_NETWORK_STATE` permissions again. The app has no network access and sends nothing.
+- AndroidX, Material Components, CameraX.
 
 ## Disclaimer
 

@@ -69,11 +69,10 @@ Open items, roughly in order of priority.
 
 ## Ideas
 
-- **Portrait mode in the booth.** A subject mask from on-device segmentation (a person model, about
-  4.5 MB for ML Kit's selfie segmenter) in the form of the depth map, so the background options
-  (lighter, darker, other raster, red) work for the booth and for photos without a depth map. First
-  read *Camera info* on the booth device: a depth output or a bokeh extension on the front camera
-  would be simpler. In strip and grid mode the frame and the date line must count as subject.
+- **Portrait mode on real faces.** Check the cut-out in the booth and with *Find subject*: hair and
+  edges, two people, glasses, a person far from the camera, a black frame in strip mode. The mask is
+  a person model; objects and animals are not found. A bokeh-extension toggle (vendor blur, no mask)
+  would be a simpler second option on devices that offer it.
 
 - **Print confirmation with a preview** before the print starts (the booth review has one, the main
   screen prints at once).

@@ -183,6 +183,7 @@ class MainActivity : AppCompatActivity() {
         watchKeyboard()
         btnPrint.setOnClickListener { print() }
         findViewById<View>(R.id.btnPrints).setOnClickListener { showPrints() }
+        findViewById<MaterialButton>(R.id.btnFindSubject).setOnClickListener { findSubject() }
 
         // Photo / sign
         val toggleApp = findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode)
@@ -497,6 +498,7 @@ class MainActivity : AppCompatActivity() {
         show(R.id.toggleOrient, !win && !selectedLabel.round && physSizeMm().let { it.first != it.second })
         show(R.id.switchSoftEdge, photo)
         show(R.id.depthBox, photo && depth != null)
+        show(R.id.btnFindSubject, photo && depth == null && ImageStore.original != null && !calibration)
         showDepthDetails()
         show(R.id.switchOverscan, photo && selectedLabel.round)
         show(R.id.captionLayout, photo && !win && instantOn())
@@ -1292,6 +1294,25 @@ class MainActivity : AppCompatActivity() {
                 runCatching { PrintArchive.save(this@MainActivity, parts, r.preview, title, twoColor, density, labelType, copies) }
             }
             textStyle?.let { history.addRecent(it) }
+        }
+    }
+
+    // A photo without a depth map: find the person with the on-device model and use the result like a
+    // depth map, so the background options work for any photo
+    private fun findSubject() {
+        val orig = ImageStore.original ?: return
+        toast(getString(R.string.finding_subject))
+        scope.launch {
+            val mask = withContext(Dispatchers.Default) { SubjectMask.find(orig) }
+            if (mask == null) return@launch toast(getString(R.string.subject_not_found))
+            ImageStore.depth = DepthMap(mask, 0.5f)
+            val n = ImageStore.norm
+            ImageStore.croppedDepth = ImageStore.rotatedDepth()?.let { if (n != null) ImageStore.crop(it, n) else it }
+            depth = ImageStore.croppedDepth
+            sliderDepthCut.value = 50f
+            log("Subject mask ${mask.width}×${mask.height}")
+            applyModeVisibility()
+            scheduleRender()
         }
     }
 

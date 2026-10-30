@@ -10,8 +10,11 @@ android {
         applicationId = "de.b21print"
         minSdk = 28
         targetSdk = 34
-        versionCode = 58
-        versionName = "1.5.0-beta4"
+        versionCode = 59
+        versionName = "1.5.0-beta5"
+        // The segmentation model brings a 16-22 MB native library per ABI; phones and tablets from the
+        // last years are all arm64
+        ndk { abiFilters += "arm64-v8a" }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -47,5 +50,6 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
     testImplementation("junit:junit:4.13.2")
 }

@@ -6,6 +6,23 @@ pipeline.
 
 ## 1.5.0 (unreleased)
 
+### Portrait mode and subject mask
+The background options (lighter, darker, other raster, red) only worked for Samsung portrait photos,
+which carry a depth map. *Camera info* showed that the phone's cameras have no depth output (but a
+bokeh extension, which gives a blurred picture and no mask), so the mask comes from a model:
+ML Kit's selfie segmenter, bundled in the app, 256 px input, soft person mask. `SubjectMask` returns it
+in the form of a depth map (gray, 255 = subject), and the existing pipeline takes it as `depth` with
+the boundary at 50 %. In the booth a button cycles the background effect; the mask is computed per
+shot, and for strip and grid laid out like the pictures, with frame and footer as subject (otherwise
+a black frame would turn red with the background). With less than 1.5 % of the picture as subject the
+effect is skipped, since a mask of only background would blank the print. The main screen has
+*Find subject* for photos without a depth map.
+
+Costs: the model's native library is 16–22 MB per ABI, so the APK went from 12 to 92 MB; it is built
+for arm64 only now (36 MB). The library adds the `INTERNET` and `ACCESS_NETWORK_STATE` permissions to
+the merged manifest (usage metrics); the app's manifest removes them, and the segmenter works without.
+Not yet tried on real faces; the emulator camera only shows a synthetic scene.
+
 ### Red signs
 Text and frame of a sign can each print red on a two-colour roll. The two are drawn as separate
 layers (`TextLabel.renderTwoColour`); the red plane is the dots of the layers set to red. The frame

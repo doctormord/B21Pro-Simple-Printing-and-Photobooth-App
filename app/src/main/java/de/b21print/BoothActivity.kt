@@ -332,6 +332,10 @@ class BoothActivity : AppCompatActivity() {
         }
         toggleMode.visibility = if (modeIds.drop(1).any { findViewById<View>(it).isEnabled }) View.VISIBLE else View.GONE
         toggleMode.check(modeIds[mode])
+        // The strip's direction follows the label's position: stacked on an upright label, side by side
+        // on a landscape one (the orientation button switches between the two)
+        findViewById<MaterialButton>(R.id.boothMode1).setText(
+            if (labelW > labelH * 1.05) R.string.booth_mode_strip_h else R.string.booth_mode_strip_v)
     }
 
     private fun updateInfo() {

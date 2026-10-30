@@ -225,7 +225,6 @@
     <string name="pano_gap_mm">%1$.1f mm</string>
     <string name="pano_no_booth">The photo booth prints one label, switch the panorama off first</string>
     <string name="booth_mode_single">Single</string>
-    <string name="booth_mode_strip">Strip ×3</string>
     <string name="booth_mode_grid">Grid 2×2</string>
     <string name="booth_frame_white">White frame</string>
     <string name="booth_frame_black">Black frame</string>
@@ -263,4 +262,6 @@
     <string name="prints_clear">Delete all</string>
     <string name="prints_clear_ask">Delete all recent prints and the list of recently printed signs? Templates stay.</string>
     <string name="orient_hint">Tap: upright or landscape · long press: the other direction</string>
+    <string name="booth_mode_strip_v">Strip ↕</string>
+    <string name="booth_mode_strip_h">Strip ↔</string>
 </resources>

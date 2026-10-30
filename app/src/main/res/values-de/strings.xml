@@ -212,7 +212,6 @@
     <string name="pano_gap_mm">%1$.1f mm</string>
     <string name="pano_no_booth">Die Fotobox druckt ein Etikett, Panorama zuerst ausschalten</string>
     <string name="booth_mode_single">Einzeln</string>
-    <string name="booth_mode_strip">Streifen ×3</string>
     <string name="booth_mode_grid">Raster 2×2</string>
     <string name="booth_frame_white">Weißer Rand</string>
     <string name="booth_frame_black">Schwarzer Rand</string>
@@ -250,4 +249,6 @@
     <string name="prints_clear">Alles löschen</string>
     <string name="prints_clear_ask">Alle letzten Drucke und die Liste der zuletzt gedruckten Schilder löschen? Vorlagen bleiben.</string>
     <string name="orient_hint">Tippen: Hoch oder Quer · lang drücken: andere Drehrichtung</string>
+    <string name="booth_mode_strip_v">Streifen ↕</string>
+    <string name="booth_mode_strip_h">Streifen ↔</string>
 </resources>

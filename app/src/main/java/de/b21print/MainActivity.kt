@@ -1324,6 +1324,9 @@ class MainActivity : AppCompatActivity() {
             list.addView(row)
         }
         dialog.setContentView(NestedScrollView(this).apply { addView(list) })
+        // On tablets the sheet would stay at its peek height, with the list below the screen edge
+        dialog.behavior.skipCollapsed = true
+        dialog.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
         dialog.show()
     }
 

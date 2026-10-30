@@ -74,6 +74,8 @@ Things that look like bugs but are deliberate:
 ## Conventions
 
 - Bump `versionCode` and `versionName` in `app/build.gradle.kts` for every APK handed out.
+- Every GitHub release gets at least one screenshot in its notes (a raw URL of a file under `docs/`
+  at the release tag or commit, so the notes stay right), taken in the emulator in English.
 - Release APKs come from `./gradlew assembleRelease` (`B21Print-<version>.apk`, attached to a
   GitHub release). Signing is configured outside the repo in `~/.gradle/gradle.properties`
   (`B21_KEYSTORE`, `B21_KEYSTORE_PASSWORD`, `B21_KEY_ALIAS`, `B21_KEY_PASSWORD`); without it the

@@ -75,7 +75,7 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Two-colour rolls (black + red)
 - Recent prints: the last 20 prints (photos, signs, booth pictures) are kept as the exact dots that
   were sent, with a thumbnail, and can be printed again with one tap, without the source or the
-  settings it came from
+  settings it came from (the button left of *Print*)
 - Battery level, voltage and temperature of the printer under the connect chip; a warning before a
   print when the battery is low
 
@@ -237,6 +237,13 @@ calibrated yet.
 Signs use the same label and print settings:
 
 ![Sign mode with a QR code](docs/sign.png)
+
+## Recent prints
+
+![Recent prints](docs/recent-prints.png)
+
+The button left of *Print* lists the last 20 prints. A tap shows the print and offers to print it
+again with the stored density, paper type and number of copies, or to delete it.
 
 ## Photo booth
 

@@ -27,7 +27,8 @@ Open items, roughly in order of priority.
 - **Red/black tones.** Red dots print lighter than black ones, so a red band reads lighter than the
   same tones in black. Check on paper whether red areas need more dots. The roll's black is a dark
   red-brown and prints much darker than the preview on photos; it needs its own tone curve.
-- Signs in red on two-colour rolls (text or frame).
+- Red signs (text or frame colour, 1.5.0): print one and compare the red text with a red photo area; a
+  red field with white text is not done.
 - What command `0x59` does (seen before gray prints; the printer replies with the label size in
   dots and mm).
 
@@ -67,6 +68,12 @@ Open items, roughly in order of priority.
 - The soft-edge fade width (12 % of the shorter side) is set from screen previews only.
 
 ## Ideas
+
+- **Portrait mode in the booth.** A subject mask from on-device segmentation (a person model, about
+  4.5 MB for ML Kit's selfie segmenter) in the form of the depth map, so the background options
+  (lighter, darker, other raster, red) work for the booth and for photos without a depth map. First
+  read *Camera info* on the booth device: a depth output or a bokeh extension on the front camera
+  would be simpler. In strip and grid mode the frame and the date line must count as subject.
 
 - **Print confirmation with a preview** before the print starts (the booth review has one, the main
   screen prints at once).

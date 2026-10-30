@@ -125,6 +125,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var toggleFont: MaterialButtonToggleGroup
     private lateinit var toggleStyle: MaterialButtonToggleGroup
     private lateinit var toggleFrame: MaterialButtonToggleGroup
+    private lateinit var toggleTextColor: MaterialButtonToggleGroup
+    private lateinit var toggleFrameColor: MaterialButtonToggleGroup
     private lateinit var sliderBrightness: Slider
     private lateinit var sliderContrast: Slider
     private lateinit var sliderDensity: Slider
@@ -162,6 +164,8 @@ class MainActivity : AppCompatActivity() {
         toggleFont = findViewById(R.id.toggleFont)
         toggleStyle = findViewById(R.id.toggleStyle)
         toggleFrame = findViewById(R.id.toggleFrame)
+        toggleTextColor = findViewById(R.id.toggleTextColor)
+        toggleFrameColor = findViewById(R.id.toggleFrameColor)
         sliderBrightness = findViewById(R.id.sliderBrightness)
         sliderContrast = findViewById(R.id.sliderContrast)
         sliderDensity = findViewById(R.id.sliderDensity)
@@ -199,17 +203,28 @@ class MainActivity : AppCompatActivity() {
         // Sign
         findViewById<TextInputLayout>(R.id.textLayout).setEndIconOnClickListener { startSpeech() }
         editText.doAfterTextChanged { scheduleRender(); updateTemplateButton() }
-        findViewById<MaterialSwitch>(R.id.switchQr).setOnCheckedChangeListener { _, _ -> scheduleRender(); updateTemplateButton() }
+        findViewById<MaterialSwitch>(R.id.switchQr).setOnCheckedChangeListener { _, _ -> applyModeVisibility(); scheduleRender(); updateTemplateButton() }
         toggleFont.check(fontIds[prefs.getInt("font", 0).coerceIn(0, 2)])
         if (prefs.getBoolean("bold", true)) toggleStyle.check(R.id.styleBold)
         toggleFrame.check(frameIds[prefs.getInt("frame", 0).coerceIn(0, 4)])
         val styleChanged = MaterialButtonToggleGroup.OnButtonCheckedListener { _, _, _ ->
+            applyModeVisibility()
             prefs.edit().putInt("font", fontIds.indexOf(toggleFont.checkedButtonId).coerceAtLeast(0))
                 .putInt("frame", frameIds.indexOf(toggleFrame.checkedButtonId).coerceAtLeast(0))
                 .putBoolean("bold", R.id.styleBold in toggleStyle.checkedButtonIds).apply()
             scheduleRender()
             updateTemplateButton()
         }
+        toggleTextColor.check(if (prefs.getInt("textColor", 0) == 1) R.id.textRed else R.id.textBlack)
+        toggleFrameColor.check(if (prefs.getInt("textFrameColor", 0) == 1) R.id.frameRed else R.id.frameBlack)
+        val colourChanged = MaterialButtonToggleGroup.OnButtonCheckedListener { _, _, _ ->
+            prefs.edit().putInt("textColor", if (toggleTextColor.checkedButtonId == R.id.textRed) 1 else 0)
+                .putInt("textFrameColor", if (toggleFrameColor.checkedButtonId == R.id.frameRed) 1 else 0).apply()
+            scheduleRender()
+            updateTemplateButton()
+        }
+        toggleTextColor.addOnButtonCheckedListener(colourChanged)
+        toggleFrameColor.addOnButtonCheckedListener(colourChanged)
         listOf(toggleFont, toggleStyle, toggleFrame).forEach { it.addOnButtonCheckedListener(styleChanged) }
         findViewById<MaterialButton>(R.id.btnHistory).setOnClickListener { showHistory() }
         btnSaveTemplate.setOnClickListener {
@@ -273,6 +288,7 @@ class MainActivity : AppCompatActivity() {
             // The toggle keeps its saved state while red is on; show it again (and print with it) when red goes off
             if (!on) toggleSpeed.check(if (prefs.getInt("speed", 1) == 0) R.id.speedFast else R.id.speedFine)
             showDepthDetails()
+            applyModeVisibility()
             scheduleRender()
         }
         toggleSpeed.isEnabled = !switchRed.isChecked
@@ -471,6 +487,11 @@ class MainActivity : AppCompatActivity() {
         show(R.id.btnCrop, photo && ImageStore.original != null)
         show(R.id.imageSection, photo)
         show(R.id.textCard, !photo)
+        // Colours of a sign on a two-colour roll: the text (not for a QR code) and the frame (if there is one)
+        val qr = findViewById<MaterialSwitch>(R.id.switchQr).isChecked
+        show(R.id.textColorBox, !photo && switchRed.isChecked && (!qr || toggleFrame.checkedButtonId != R.id.frame0))
+        show(R.id.toggleTextColor, !qr)
+        show(R.id.toggleFrameColor, toggleFrame.checkedButtonId != R.id.frame0)
         show(R.id.windowTuning, win)
         show(R.id.switchInstant, photo && !win && !selectedLabel.round)
         show(R.id.toggleOrient, !win && !selectedLabel.round && physSizeMm().let { it.first != it.second })
@@ -593,6 +614,8 @@ class MainActivity : AppCompatActivity() {
         frame = frameIds.indexOf(toggleFrame.checkedButtonId).coerceAtLeast(0),
         label = selectedLabel.name,
         qr = findViewById<MaterialSwitch>(R.id.switchQr).isChecked,
+        color = if (R.id.textRed == toggleTextColor.checkedButtonId) 1 else 0,
+        frameColor = if (R.id.frameRed == toggleFrameColor.checkedButtonId) 1 else 0,
     )
 
     private fun applyTextStyle(s: TextStyle) {
@@ -602,6 +625,8 @@ class MainActivity : AppCompatActivity() {
         listOf(R.id.styleBold to s.bold, R.id.styleItalic to s.italic, R.id.styleUnderline to s.underline)
             .forEach { (id, on) -> if (on) toggleStyle.check(id) else toggleStyle.uncheck(id) }
         findViewById<MaterialSwitch>(R.id.switchQr).isChecked = s.qr
+        toggleTextColor.check(if (s.color == 1) R.id.textRed else R.id.textBlack)
+        toggleFrameColor.check(if (s.frameColor == 1) R.id.frameRed else R.id.frameBlack)
         editText.setText(s.text)
         editText.setSelection(editText.length())
     }
@@ -837,8 +862,9 @@ class MainActivity : AppCompatActivity() {
             val r: ImageProcessor.Result
             if (textMode) {
                 val style = currentTextStyle()
+                val twoColour = switchRed.isChecked
                 r = withContext(Dispatchers.Default) {
-                    ImageProcessor.renderText(style, wmm, hmm, label.window, label.frameColor, label.round, capPx()).withRot(orient())
+                    ImageProcessor.renderText(style, wmm, hmm, label.window, label.frameColor, label.round, capPx(), twoColour).withRot(orient())
                 }
                 rendered = if (style.text.isNotBlank()) r else null
             } else {
@@ -1576,6 +1602,7 @@ class MainActivity : AppCompatActivity() {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_BITMAP_FILE)
             })
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
+            addView(button("Camera info") { runCatching { CameraInfo.describe(this@MainActivity) }.getOrElse { listOf("Camera info failed: ${it.message}") }.asReversed().forEach { appendLog(it) } })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
             })

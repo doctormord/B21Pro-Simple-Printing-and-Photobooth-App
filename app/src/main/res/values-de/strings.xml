@@ -232,4 +232,8 @@
     <string name="prints_mode_mono">1-Bit</string>
     <string name="prints_mode_red">Rot/Schwarz</string>
     <string name="prints_parts">%d Etiketten</string>
+    <string name="text_black">Text: schwarz</string>
+    <string name="text_red">Text: rot</string>
+    <string name="frame_black">Rahmen: schwarz</string>
+    <string name="frame_red">Rahmen: rot</string>
 </resources>

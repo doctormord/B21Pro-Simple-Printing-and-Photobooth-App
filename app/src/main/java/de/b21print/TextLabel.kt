@@ -19,16 +19,21 @@ data class TextStyle(
     val frame: Int = 0,     // 0 none, 1 line, 2 bold, 3 double, 4 dashed
     val label: String = "",
     val qr: Boolean = false,
+    // Two-colour rolls: 0 black, 1 red
+    val color: Int = 0,
+    val frameColor: Int = 0,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("text", text).put("font", font).put("bold", bold).put("italic", italic)
         .put("underline", underline).put("frame", frame).put("label", label).put("qr", qr)
+        .put("color", color).put("frameColor", frameColor)
 
     companion object {
 
         fun fromJson(o: JSONObject) = TextStyle(
             o.optString("text"), o.optInt("font"), o.optBoolean("bold", true), o.optBoolean("italic"),
             o.optBoolean("underline"), o.optInt("frame"), o.optString("label"), o.optBoolean("qr"),
+            o.optInt("color"), o.optInt("frameColor"),
         )
 
         fun typeface(font: Int, bold: Boolean, italic: Boolean): Typeface {
@@ -53,7 +58,12 @@ object TextLabel {
 
     // Draws frame and text into a w×h image (print head coordinates).
     // area: the label in those coordinates (partly outside for wide labels)
-    fun draw(canvas: Canvas, area: RectF, round: Boolean, s: TextStyle) {
+    // layer: ALL, or only the frame / only the text (for the two colours of a two-colour roll)
+    const val ALL = 0
+    const val FRAME = 1
+    const val TEXT = 2
+
+    fun draw(canvas: Canvas, area: RectF, round: Boolean, s: TextStyle, layer: Int = ALL) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE }
 
         // Frame slightly inset so it stays within the printable area
@@ -69,7 +79,7 @@ object TextLabel {
             else canvas.drawRoundRect(rr, mm(2.0), mm(2.0), paint)
         }
         var textBox = RectF(frameBox)
-        when (s.frame) {
+        if (layer != TEXT) when (s.frame) {
             1 -> shape(frameBox, thin)
             2 -> shape(frameBox, mm(1.0))
             3 -> {
@@ -88,7 +98,7 @@ object TextLabel {
         }
 
         val text = s.text.trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() || layer == FRAME) return
         if (s.qr) { drawQr(canvas, textBox, text); return }
         val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
@@ -186,14 +196,33 @@ object TextLabel {
         return bestLines
     }
 
-    fun render(s: TextStyle, w: Int, h: Int, area: RectF, round: Boolean): ByteArray {
+    private fun dots(s: TextStyle, w: Int, h: Int, area: RectF, round: Boolean, layer: Int): ByteArray {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         c.drawColor(Color.WHITE)
-        draw(c, area, round, s)
+        draw(c, area, round, s, layer)
         val px = IntArray(w * h)
         bmp.getPixels(px, 0, w, 0, 0, w, h)
         bmp.recycle()
         return ByteArray(w * h) { if (Color.red(px[it]) < 140) 1 else 0 }
+    }
+
+    fun render(s: TextStyle, w: Int, h: Int, area: RectF, round: Boolean): ByteArray =
+        dots(s, w, h, area, round, ALL)
+
+    // Dots and the red plane for a two-colour roll. A QR code stays black (red scans badly on thermal
+    // paper). Text and frame are separate layers; the frame sits well clear of the text, since a red dot
+    // next to a black one prints black.
+    fun renderTwoColour(s: TextStyle, w: Int, h: Int, area: RectF, round: Boolean): Pair<ByteArray, ByteArray> {
+        val textRed = s.color == 1 && !s.qr
+        val frameRed = s.frameColor == 1 && s.frame != 0
+        if (!textRed && !frameRed) return render(s, w, h, area, round) to ByteArray(w * h)
+        val frame = dots(s, w, h, area, round, FRAME)
+        val text = dots(s, w, h, area, round, TEXT)
+        val bits = ByteArray(w * h) { if (frame[it].toInt() != 0 || text[it].toInt() != 0) 1 else 0 }
+        val red = ByteArray(w * h) {
+            if ((textRed && text[it].toInt() != 0) || (frameRed && frame[it].toInt() != 0)) 1 else 0
+        }
+        return bits to red
     }
 }

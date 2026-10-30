@@ -132,7 +132,7 @@ object ImageProcessor {
     // Sign mode: text instead of a photo
     fun renderText(
         style: TextStyle, labelWmm: Double, labelHmm: Double, window: PhotoWindow?, frameColor: Int?, round: Boolean,
-        cap: Int = Niimbot.PRINTHEAD_PIXELS,
+        cap: Int = Niimbot.PRINTHEAD_PIXELS, twoColour: Boolean = false,
     ): Result {
         val labelW = mmToPx(labelWmm)
         val w = minOf(cap, labelW)
@@ -143,6 +143,10 @@ object ImageProcessor {
                 mmToPx(window.x + window.w).toFloat() - headLeft, mmToPx(window.y + window.h).toFloat())
         } else {
             RectF(-headLeft.toFloat(), 0f, (labelW - headLeft).toFloat(), h.toFloat())
+        }
+        if (twoColour) {
+            val (bits, red) = TextLabel.renderTwoColour(style, w, h, area, round)
+            return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor, red = red), red = red)
         }
         val bits = TextLabel.render(style, w, h, area, round)
         return Result(bits, w, h, composePreview(bits, w, h, labelW, headLeft, window, frameColor))

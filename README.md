@@ -52,6 +52,7 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - QR code instead of text: the largest error correction level whose modules still print at 3 dots
   or more, whole-dot modules and a quiet zone
 - Three fonts, bold/italic/underline, five frame styles
+- On two-colour rolls the text and the frame can each print black or red (a QR code stays black)
 - Voice input
 - History of the last 50 printed signs, and saved templates
 
@@ -195,7 +196,7 @@ calibrated (see *Calibration*); with a measured curve it is corrected like the p
   *Red tones* selects a band of image tones (0 % = black, 100 % = white) that prints red, the rest
   prints black, a bit like split toning. The band edges blend softly. The colour is decided on a
   slightly blurred image and blended in 2 × 2-dot cells, because a red dot next to a black one turns
-  black (the heat spreads) and fine red/black mixtures print as a muddy brown. Signs print black.
+  black (the heat spreads) and fine red/black mixtures print as a muddy brown. Signs print black unless a colour is chosen for the text or the frame.
 
 ![Soft edge](docs/soft-edge.png)
 
@@ -345,6 +346,9 @@ the BLE characteristic and shows every reply. It also offers:
 - **Save print bitmap** / **Print bitmap file**: the dots of the current print as a PNG (1:1, gray
   levels as gray, no red) and the other way round, a PNG sent as a 1-bit print. For checking
   patterns without paper; for repeating a print use *Recent prints* instead.
+- **Camera info**: per camera the facing, whether it has a depth output, which vendor extensions
+  (bokeh, face retouch, ...) it offers and its physical cameras. Shows what a portrait mode in the
+  booth could build on.
 - **Heartbeat 2 / 3 / 4**: the other heartbeat requests; the replies are shown raw. Type 1 (battery,
   voltage, temperature) runs by itself and fills the battery line in the main window.
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to

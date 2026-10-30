@@ -6,6 +6,18 @@ pipeline.
 
 ## 1.5.0 (unreleased)
 
+### Red signs
+Text and frame of a sign can each print red on a two-colour roll. The two are drawn as separate
+layers (`TextLabel.renderTwoColour`); the red plane is the dots of the layers set to red. The frame
+sits at least 1 mm from the text, because a red dot next to a black one prints black (the heat
+spreads). A QR code stays black: red is paler on thermal paper and scans worse.
+
+### Camera info
+The debug console lists, per camera, the facing, depth output (capability and DEPTH16 / depth JPEG
+streams), the vendor extensions and the physical cameras behind a logical one. It decides how a
+portrait mode in the booth could work: a depth output or the bokeh extension on the front camera
+would be simpler than a software mask. On the emulator: one back camera, no depth, no extensions.
+
 ### Recent prints
 Every successful print (photo, sign, booth picture) is stored as what was sent: the 1-bit dots, the
 gray levels and the red plane of each label of the job, gzipped, with density, paper type, copies

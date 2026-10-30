@@ -245,4 +245,8 @@
     <string name="prints_mode_mono">1-bit</string>
     <string name="prints_mode_red">Red/black</string>
     <string name="prints_parts">%d labels</string>
+    <string name="text_black">Text: black</string>
+    <string name="text_red">Text: red</string>
+    <string name="frame_black">Frame: black</string>
+    <string name="frame_red">Frame: red</string>
 </resources>

@@ -174,7 +174,32 @@
                         </com.google.android.material.button.MaterialButtonToggleGroup>
                     </LinearLayout>
 
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    <LinearLayout android:id="@+id/textColorBox" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:layout_marginTop="8dp" android:visibility="gone">
+                    <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleTextColor"
+                        android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                        app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/textBlack">
+                        <com.google.android.material.button.MaterialButton android:id="@+id/textBlack"
+                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                            android:layout_height="wrap_content" android:text="@string/text_black" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/textRed"
+                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                            android:layout_height="wrap_content" android:text="@string/text_red" />
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+                    <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleFrameColor"
+                        android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/frameBlack">
+                        <com.google.android.material.button.MaterialButton android:id="@+id/frameBlack"
+                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                            android:layout_height="wrap_content" android:text="@string/frame_black" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/frameRed"
+                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                            android:layout_height="wrap_content" android:text="@string/frame_red" />
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+                </LinearLayout>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="horizontal" android:layout_marginTop="4dp">
                         <com.google.android.material.button.MaterialButton android:id="@+id/btnHistory"
                             style="@style/Widget.Material3.Button.TextButton.Icon"

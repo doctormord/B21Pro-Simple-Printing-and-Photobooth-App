@@ -4,7 +4,32 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
-## 1.5.0 (unreleased)
+## 1.5.0 (2026-10-30)
+
+### Calibration reading
+Screenshots of the calibration dialog from the phone showed a moiré on the rectified chart and the
+*Camera* and *Gallery* buttons breaking their words. The reader took 20 × 20 point samples per patch
+(and a point-sampled preview): a photo has only about 1.4 pixels per printed dot, and a dither
+pattern with a period of 8 dots is 10 pixels wide, so a regular grid of points aliases with it.
+The paper white was never forced to the maximum: each patch is divided by the median of the paper
+in the gutters around it (for bands, left and right of it), so uneven light cancels and nothing
+depends on the exposure; the last patch is 100 % dark, and a level below 4 % counts as paper.
+Measured on a synthetic photo (see the self-test below), the old reader was 0.1–0.3 % rms off for
+the regular looks and 0.9 % rms, up to 4 % at worst, for the noise-like ones (blue noise,
+Riemersma). Now every photo pixel of a patch is averaged (the number of samples follows the photo's
+scale, found from the homography) and the preview averages the pixels each output pixel covers; the
+same photo reads 0.1–0.2 % rms, worst case 0.4 %. The debug console's *Calibration self-test* keeps
+this checkable: a software "photograph" of each chart (turned, tilted, 1.4 pixels per dot, blurred,
+a light gradient, paper texture, noise) against the ink coverage the chart really has. A real photo
+adds sensor sharpening and JPEG, which the self-test does not.
+
+### Screenshots
+The README's screenshots come from `tools/screenshots/shots.py`: an emulator set to a Galaxy S25
+display, settings from a preferences file, the app driven by resource id through the accessibility
+tree, each screenshot cut to the union of the views a scene names. The photo comes from the
+emulator's camera through the booth. Before, they were taken and cut by hand, and went stale with
+every UI change; at 1080 × 2340 and the system font size they also showed which labels did not fit
+(the mode buttons *Photo* and *Booth* in English).
 
 ### Phone fixes (beta 6)
 Screenshots from the phone showed buttons that did not fit: the text and frame colours (*Text: black* ...

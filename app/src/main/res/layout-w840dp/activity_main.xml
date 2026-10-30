@@ -48,14 +48,20 @@
             android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:layout_marginBottom="8dp"
             app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/modeAppPhoto">
             <com.google.android.material.button.MaterialButton android:id="@+id/modeAppPhoto"
+            android:paddingStart="8dp" android:paddingEnd="8dp" app:iconPadding="4dp" app:iconSize="18dp"
+            android:textSize="14sp" android:maxLines="1"
                 style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
                 android:layout_height="wrap_content" android:text="@string/mode_photo" app:icon="@drawable/ic_photo_mode" />
             <com.google.android.material.button.MaterialButton android:id="@+id/modeAppBooth"
+            android:paddingStart="8dp" android:paddingEnd="8dp" app:iconPadding="4dp" app:iconSize="18dp"
+            android:textSize="14sp" android:maxLines="1"
                 style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
                 android:layout_height="wrap_content" android:text="@string/mode_booth" app:icon="@drawable/ic_booth"
                 app:backgroundTint="@color/booth_container" android:textColor="@color/on_booth_container"
                 app:iconTint="@color/on_booth_container" />
             <com.google.android.material.button.MaterialButton android:id="@+id/modeAppText"
+            android:paddingStart="8dp" android:paddingEnd="8dp" app:iconPadding="4dp" app:iconSize="18dp"
+            android:textSize="14sp" android:maxLines="1"
                 style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
                 android:layout_height="wrap_content" android:text="@string/mode_sign" app:icon="@drawable/ic_text_mode" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
@@ -217,7 +223,7 @@
                     android:layout_height="wrap_content" android:orientation="horizontal" />
             </HorizontalScrollView>
 
-            <com.google.android.material.card.MaterialCardView android:layout_width="match_parent"
+            <com.google.android.material.card.MaterialCardView android:id="@+id/cardLabel" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="12dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical">
@@ -364,7 +370,7 @@
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="@string/section_image" style="@style/B21.SectionTitle"
                 android:layout_marginTop="20dp" android:layout_marginStart="4dp" android:layout_marginBottom="8dp" />
-            <com.google.android.material.card.MaterialCardView android:layout_width="match_parent"
+            <com.google.android.material.card.MaterialCardView android:id="@+id/cardImage" android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical">
@@ -491,7 +497,7 @@
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="@string/section_print" style="@style/B21.SectionTitle"
                 android:layout_marginTop="20dp" android:layout_marginStart="4dp" android:layout_marginBottom="8dp" />
-            <com.google.android.material.card.MaterialCardView android:layout_width="match_parent"
+            <com.google.android.material.card.MaterialCardView android:id="@+id/cardPrint" android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical">

@@ -35,7 +35,7 @@ Open items, roughly in order of priority.
 - **Depth split on paper.** Print a portrait photo with background *other raster* (Amiga fine /
   Blue noise) and with *red*: does the seam show, does the boundary fit?
 
-## 1.4.2 / 1.4.3 (needs paper)
+## 1.4.2 – 1.5.0 (needs paper)
 
 - **Landscape direction.** Print a label in *Landscape ↻* and *↺* and check which way the picture
   turns on the paper.
@@ -44,6 +44,7 @@ Open items, roughly in order of priority.
 - **Strip and grid.** Print one of each; is the date line legible, and does the black frame (a lot of
   black) print evenly?
 - **Stamp.** Check legibility on a photo with a busy bottom right corner, in gray and 1-bit.
+- **Calibration on real photos.** Compare the new reader with the old one on a few real chart photos (the self-test is synthetic); check whether a clipped paper white (overexposed photo) needs a warning.
 - **Black instant frame.** A large black area; check evenness and density.
 - **Battery level.** Read the level byte once with a fully charged pack and map it to percent.
 

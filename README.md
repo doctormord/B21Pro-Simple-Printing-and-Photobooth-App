@@ -1,13 +1,12 @@
 # B21 Print
 
 An Android app for the NIIMBOT B21 Pro label printer. It prints photos and text signs over
-Bluetooth, with no account, no cloud catalog and no RFID roll check, and it has a photo booth mode
-for tablets.
+Bluetooth, with no account, no cloud catalog and no RFID roll check, and it has a photo booth mode.
+It is made for tablets and phones alike: the booth is a good fit for a tablet on a stand, but it
+works on a phone just as well, and the layout adapts (single column, or two columns on a wide
+tablet). The screenshots in this README are from a phone-sized screen, 1080 × 2340 like a Galaxy S25.
 
-<p>
-  <img src="docs/tablet-landscape.png" width="64%" alt="Tablet, landscape">
-  <img src="docs/tablet-portrait.png" width="30%" alt="Tablet, portrait">
-</p>
+![A photo, a red sign and the photo booth review](docs/overview.png)
 
 <p>
   <img src="docs/print-gray-amiga.jpg" width="58%" alt="Gray and Amiga fine prints on 40 × 40 mm labels">
@@ -94,6 +93,83 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Phone, tablet portrait and a two-column tablet landscape layout
 - English and German UI
 
+## A tour
+
+Made with `tools/screenshots/shots.py` (see *Screenshots* below), so they follow the app.
+
+### Photos and labels
+
+<p>
+  <img src="docs/main-photo.png" width="30%" alt="A photo on a 40 × 60 mm label with a date stamp">
+  <img src="docs/label-settings.png" width="34%" alt="Label settings: size, instant frame, orientation, panorama, stamp">
+  <img src="docs/image-settings.png" width="34%" alt="Image settings: raster look, brightness, contrast, invert, soft edge">
+</p>
+
+The preview shows the print as it will come out: the dots, the gray levels or, on a two-colour roll,
+the red. Pick a label (a preset or your own size), crop the photo to it, choose a raster look.
+Non-square labels can be turned with one button (upright or landscape; a long press turns the
+landscape the other way). The panorama slider spreads one picture over up to six labels, printed one
+after another.
+
+<p>
+  <img src="docs/panorama.png" width="48%" alt="One picture over three labels">
+  <img src="docs/instant-black.png" width="48%" alt="A black instant frame with a text stamp">
+</p>
+
+Left: a panorama over three labels. Right: an instant frame in black, with the stamp in white. The
+stamp puts the date and time or a short text (up to 32 characters) at the bottom right, in a pixel
+font, in white or black:
+
+<img src="docs/stamp.png" width="42%" alt="The stamp buttons">
+
+### Signs
+
+<p>
+  <img src="docs/sign-qr.png" width="48%" alt="A sign with a QR code">
+  <img src="docs/sign-red.png" width="48%" alt="A sign with red text in a black frame on a two-colour roll">
+</p>
+
+Type or speak a text; size and line breaks are automatic. One switch turns the text into a QR code.
+On a two-colour roll the buttons *Text* and *Frame* toggle black and red, each shown in its own
+colour (a QR code stays black).
+
+### Photo booth
+
+<p>
+  <img src="docs/booth-viewfinder.png" width="30%" alt="The viewfinder with the printable area marked">
+  <img src="docs/booth-review.png" width="30%" alt="The review: delete, edit in the main screen, print">
+</p>
+
+<img src="docs/booth-controls.png" width="48%" alt="Mode, frame, orientation and portrait buttons">
+
+The booth takes a series of pictures and builds one label from them. A strip stacks three pictures
+on a label taller than wide; on a wider label it puts them side by side (tall pictures, the label is
+printed turned). A square label gets the grid. The orientation button switches between the two strip
+directions.
+
+<p>
+  <img src="docs/booth-strip.png" width="30%" alt="A strip of three pictures with the date">
+  <img src="docs/booth-strip-side.png" width="40%" alt="Three tall pictures side by side">
+  <img src="docs/booth-grid.png" width="26%" alt="A 2 × 2 grid with a black frame">
+</p>
+
+The frame between the pictures is white or black; the line at the bottom carries the date (or the
+stamp text) in the opposite colour. The portrait button works with strip and grid too: each picture
+gets its own mask, and the frame and the date line count as subject, so a black frame does not turn
+red with the background. The booth builds the layout at print resolution (`PhotoStrip.kt`) and sends
+it through the same pipeline as any photo, so raster look, density and print mode apply to the whole
+strip. The pictures are cut to the shape of one tile; the viewfinder frame shows that shape. Round
+labels only take single pictures.
+
+### Recent prints
+
+<img src="docs/recent-prints.png" width="30%" alt="The list of recent prints">
+
+The clock button beside the picture (with camera and gallery) lists the last 20 prints. A tap shows
+the print and offers to print it again with the stored density, paper type and number of copies, or
+to delete it. *Delete all* at the bottom clears the list and the recently printed signs (templates
+stay); the debug console has a switch to keep no history at all.
+
 ## Raster looks
 
 The photo is scaled to the printer's 300 dpi first; the look is then applied pixel for pixel and
@@ -167,8 +243,8 @@ calibrated (see *Calibration*); with a measured curve it is corrected like the p
 ## Settings
 
 <p>
-  <img src="docs/settings.png" width="49%" alt="Image and print settings">
-  <img src="docs/label-options.png" width="49%" alt="Label options with soft edge and overscan">
+  <img src="docs/image-settings.png" width="40%" alt="Image settings">
+  <img src="docs/print-settings.png" width="40%" alt="Print settings: density, mode, paper type, copies, paper profile">
 </p>
 
 - **Raster**: the look, see above.
@@ -224,6 +300,8 @@ with the photo; it is laid over the label exactly like the photo. Other phones' 
 *Paper profile → Calibrate…* measures the current print mode at the current density on the loaded
 paper, without a computer:
 
+<img src="docs/calibration.png" width="34%" alt="The calibration dialog">
+
 1. *Print chart*: corner squares, the steps to measure and the settings as text. Needs a plain
    label of at least 30 × 30 mm. In *Coarse*: 5 × 5 patches of 25 tones with white gutters, dithered
    with the selected look (photo, *Amiga*, *Amiga fine*, *Blue noise* or *Riemersma*). In *Fine*: one
@@ -240,35 +318,16 @@ paper, without a computer:
    measured curve. *Amiga fine*, *Blue noise* and *Riemersma* without their own curve use the photo
    curve; *Amiga* (2 × 2 blocks, which merge far less than single dots) stays uncorrected.
 
+The reading averages every photo pixel of a patch (and of the paper around it) in linear light; a
+dither pattern has only a few photo pixels per period, and sampling a few points of it would alias.
+The rectified chart in the dialog is averaged the same way. The debug console's *Calibration
+self-test* reads a synthetic photo of each chart (turned, tilted, blurred, with a light gradient,
+paper texture and noise) and compares the result with the real ink coverage: about 0.2 % rms.
+
 Gray uses the measured levels when diffusing (levels that print alike are simply skipped), 1-bit
 uses the measured table in place of the built-in one, and the preview follows both. Phone photos
 crush the darkest tones, so the shadow end is less reliable than the rest. Red/black rolls cannot be
 calibrated yet.
-
-Signs use the same label and print settings:
-
-![Sign mode with a QR code](docs/sign.png)
-
-## Recent prints
-
-![Recent prints](docs/recent-prints.png)
-
-The clock button beside the picture (with the camera and gallery buttons) lists the last 20 prints. A
-tap shows the print and offers to print it again with the stored density, paper type and number of
-copies, or to delete it. *Delete all* at the bottom clears the list and the recently printed signs
-(templates stay); the debug console has a switch to keep no history at all.
-
-## Photo booth
-
-![Strip of three pictures with the date](docs/booth-strip.png)
-
-The portrait button works with strip and grid too: each picture gets its own mask, and the frame and
-the date line count as subject, so a black frame does not turn red with the background.
-
-The booth takes the picture series, builds the layout at print resolution (`PhotoStrip.kt`) and
-sends it through the same pipeline as any photo, so raster look, density and print mode apply to the
-whole strip. The pictures are cut to the shape of one tile; the viewfinder frame shows that shape.
-Landscape labels and round labels only take single pictures.
 
 ## Requirements
 
@@ -332,6 +391,24 @@ The output is `app/build/outputs/apk/release/app-release.apk`. Android only inst
 it is signed with the same key as the installed app, so your own builds and the release APKs
 cannot replace each other.
 
+### Screenshots
+
+`tools/screenshots/shots.py` makes the screenshots of this README in an emulator, set to the display
+of a Galaxy S25 (1080 × 2340, 480 dpi). It writes the app's settings to a preferences file, drives
+the app through the accessibility tree (views are found by resource id or text, not by position),
+takes the photo through the photo booth of the emulator's camera, and cuts every screenshot to the
+views a scene names, so a moved or resized view moves the crop with it. Needs `adb`, `ffmpeg`, a
+running emulator and the debug APK:
+
+```sh
+./gradlew assembleDebug
+python3 tools/screenshots/shots.py              # all scenes, writes docs/*.png
+python3 tools/screenshots/shots.py --only booth # some scenes (--list shows them)
+```
+
+A new feature is a new scene function in the script, and an `android:id` in the layout for a view that
+has none yet.
+
 ## Debug console
 
 Long-press the *B21 Print* title. With a printer connected, the console sends raw text commands to
@@ -365,6 +442,9 @@ the BLE characteristic and shows every reply. It also offers:
 - **Camera info**: per camera the facing, whether it has a depth output, which vendor extensions
   (bokeh, face retouch, ...) it offers and its physical cameras. Shows what a portrait mode in the
   booth could build on.
+- **Calibration self-test**: reads a synthetic photo of each calibration chart and reports how far
+  the reading is from the real ink coverage (see *Calibration*).
+- **Keep history of prints**: a switch; off = no recent prints and no recently printed signs.
 - **Heartbeat 2 / 3 / 4**: the other heartbeat requests; the replies are shown raw. Type 1 (battery,
   voltage, temperature) runs by itself and fills the battery line in the main window.
 - **Printer diagnostics**: queries RFID, anti-fake and status data and writes the raw replies to
@@ -424,6 +504,9 @@ main reference.
 | `TextLabel.kt`                   | sign rendering, QR code                                        |
 | `PrintArchive.kt`                | the last 20 prints as finished dots, for printing again        |
 | `PhotoStrip.kt`                  | photo booth layouts (strip, grid), pixel-font text            |
+| `SubjectMask.kt`                 | person mask from the on-device segmentation model, in the form of a depth map |
+| `CameraInfo.kt`                  | what each camera offers (depth output, vendor extensions), for the debug console |
+| `CalSelfTest.kt`                 | synthetic photo of a calibration chart, checks `ChartReader`   |
 | `Labels.kt`                      | label presets                                                  |
 | `MainActivity.kt`                | main screen                                                    |
 | `CropActivity.kt`, `CropView.kt` | crop screen                                                    |

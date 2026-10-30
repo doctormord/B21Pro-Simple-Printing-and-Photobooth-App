@@ -24,6 +24,9 @@ Everything else is checked in the emulator and on paper.
   main screen (single column / tablet landscape). UI changes go into both.
 - Strings exist in `values/` (English) and `values-de/` (German). Keep both in step.
 - The debug console UI is built in code with hard-coded English strings; that is intentional.
+- `tools/screenshots/shots.py`: the README's screenshots, made in an emulator (Galaxy S25 display),
+  driven by resource id and cut to the views a scene names. Run it after a UI change (needs the debug
+  APK, adb, ffmpeg). A new feature = a new scene function; a view without an id gets one in the layout.
 - `tools/mkchart.py`: test chart generator; `TestChart.kt` is its Kotlin port. Keep them in sync.
 - `Dither.kt`: blue-noise map (built on first use) and Riemersma; the calibratable 1-bit looks are
   `CAL_LOOKS` in MainActivity, each with its own profile key. `ImageProcessor.MEASURED` are the ones
@@ -74,6 +77,8 @@ Things that look like bugs but are deliberate:
 ## Conventions
 
 - Bump `versionCode` and `versionName` in `app/build.gradle.kts` for every APK handed out.
+- Screenshots in the README and the release notes come from `tools/screenshots/shots.py`, not from
+  hand-made crops; rerun it before a release so they show the released version.
 - Every GitHub release gets at least one screenshot in its notes (a raw URL of a file under `docs/`
   at the release tag or commit, so the notes stay right), taken in the emulator in English.
 - Release APKs come from `./gradlew assembleRelease` (`B21Print-<version>.apk`, attached to a

@@ -1602,7 +1602,7 @@ class MainActivity : AppCompatActivity() {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_BITMAP_FILE)
             })
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
-            addView(button("Camera info") { runCatching { CameraInfo.describe(this@MainActivity) }.getOrElse { listOf("Camera info failed: ${it.message}") }.asReversed().forEach { appendLog(it) } })
+            addView(button("Camera info") { runCatching { CameraInfo.describe(this@MainActivity) }.getOrElse { listOf("Camera info failed: ${it.message}") }.also { l -> l.forEach { android.util.Log.i("B21", it) } }.asReversed().forEach { appendLog(it) } })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
             })

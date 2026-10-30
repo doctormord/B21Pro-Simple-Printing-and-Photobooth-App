@@ -125,8 +125,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var toggleFont: MaterialButtonToggleGroup
     private lateinit var toggleStyle: MaterialButtonToggleGroup
     private lateinit var toggleFrame: MaterialButtonToggleGroup
-    private lateinit var toggleTextColor: MaterialButtonToggleGroup
-    private lateinit var toggleFrameColor: MaterialButtonToggleGroup
+    // Two-colour roll: the sign's text and frame print black (false) or red (true)
+    private var textRed = false
+    private var frameRed = false
     private lateinit var sliderBrightness: Slider
     private lateinit var sliderContrast: Slider
     private lateinit var sliderDensity: Slider
@@ -164,8 +165,6 @@ class MainActivity : AppCompatActivity() {
         toggleFont = findViewById(R.id.toggleFont)
         toggleStyle = findViewById(R.id.toggleStyle)
         toggleFrame = findViewById(R.id.toggleFrame)
-        toggleTextColor = findViewById(R.id.toggleTextColor)
-        toggleFrameColor = findViewById(R.id.toggleFrameColor)
         sliderBrightness = findViewById(R.id.sliderBrightness)
         sliderContrast = findViewById(R.id.sliderContrast)
         sliderDensity = findViewById(R.id.sliderDensity)
@@ -183,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         watchKeyboard()
         btnPrint.setOnClickListener { print() }
         findViewById<View>(R.id.btnPrints).setOnClickListener { showPrints() }
-        findViewById<MaterialButton>(R.id.btnFindSubject).setOnClickListener { findSubject() }
+        findViewById<MaterialButton>(R.id.btnFindSubject).setOnClickListener { if (ImageStore.depthIsModel) removeSubject() else findSubject() }
 
         // Photo / sign
         val toggleApp = findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode)
@@ -216,16 +215,11 @@ class MainActivity : AppCompatActivity() {
             scheduleRender()
             updateTemplateButton()
         }
-        toggleTextColor.check(if (prefs.getInt("textColor", 0) == 1) R.id.textRed else R.id.textBlack)
-        toggleFrameColor.check(if (prefs.getInt("textFrameColor", 0) == 1) R.id.frameRed else R.id.frameBlack)
-        val colourChanged = MaterialButtonToggleGroup.OnButtonCheckedListener { _, _, _ ->
-            prefs.edit().putInt("textColor", if (toggleTextColor.checkedButtonId == R.id.textRed) 1 else 0)
-                .putInt("textFrameColor", if (toggleFrameColor.checkedButtonId == R.id.frameRed) 1 else 0).apply()
-            scheduleRender()
-            updateTemplateButton()
-        }
-        toggleTextColor.addOnButtonCheckedListener(colourChanged)
-        toggleFrameColor.addOnButtonCheckedListener(colourChanged)
+        textRed = prefs.getInt("textColor", 0) == 1
+        frameRed = prefs.getInt("textFrameColor", 0) == 1
+        styleColourButtons()
+        findViewById<MaterialButton>(R.id.btnTextColor).setOnClickListener { textRed = !textRed; colourChanged() }
+        findViewById<MaterialButton>(R.id.btnFrameColor).setOnClickListener { frameRed = !frameRed; colourChanged() }
         listOf(toggleFont, toggleStyle, toggleFrame).forEach { it.addOnButtonCheckedListener(styleChanged) }
         findViewById<MaterialButton>(R.id.btnHistory).setOnClickListener { showHistory() }
         btnSaveTemplate.setOnClickListener {
@@ -338,13 +332,27 @@ class MainActivity : AppCompatActivity() {
         sliderPanoGap.addOnChangeListener { _, v, _ ->
             txtPanoGap.text = getString(R.string.pano_gap_mm, v); scheduleRender()
         }
-        val toggleOrient = findViewById<MaterialButtonToggleGroup>(R.id.toggleOrient)
-        toggleOrient.check(intArrayOf(R.id.orient0, R.id.orient1, R.id.orient2)[prefs.getInt("orient", 0).coerceIn(0, 2)])
-        toggleOrient.addOnButtonCheckedListener { _, id, checked ->
-            if (!checked) return@addOnButtonCheckedListener
-            prefs.edit().putInt("orient", intArrayOf(R.id.orient0, R.id.orient1, R.id.orient2).indexOf(id)).apply()
+        // One button: upright or landscape; a long press turns the landscape the other way
+        val btnOrient = findViewById<MaterialButton>(R.id.btnOrient)
+        btnOrient.tooltipText = getString(R.string.orient_hint)
+        updateOrientButton()
+        btnOrient.setOnClickListener {
+            val o = prefs.getInt("orient", 0)
+            val to = if (o == 0) prefs.getInt("orientDir", 1) else 0
+            prefs.edit().putInt("orient", to).apply()
+            updateOrientButton()
             // A crop made for the other orientation is refitted in scheduleRender
             scheduleRender()
+        }
+        btnOrient.setOnLongClickListener {
+            val o = prefs.getInt("orient", 0)
+            if (o != 0) {
+                val to = 3 - o
+                prefs.edit().putInt("orient", to).putInt("orientDir", to).apply()
+                updateOrientButton()
+                scheduleRender()
+            }
+            true
         }
         switchOverscan.isChecked = prefs.getBoolean("overscan", false)
         switchOverscan.setOnCheckedChangeListener { _, on ->
@@ -491,14 +499,15 @@ class MainActivity : AppCompatActivity() {
         // Colours of a sign on a two-colour roll: the text (not for a QR code) and the frame (if there is one)
         val qr = findViewById<MaterialSwitch>(R.id.switchQr).isChecked
         show(R.id.textColorBox, !photo && switchRed.isChecked && (!qr || toggleFrame.checkedButtonId != R.id.frame0))
-        show(R.id.toggleTextColor, !qr)
-        show(R.id.toggleFrameColor, toggleFrame.checkedButtonId != R.id.frame0)
+        show(R.id.btnTextColor, !qr)
+        show(R.id.btnFrameColor, toggleFrame.checkedButtonId != R.id.frame0)
         show(R.id.windowTuning, win)
         show(R.id.switchInstant, photo && !win && !selectedLabel.round)
-        show(R.id.toggleOrient, !win && !selectedLabel.round && physSizeMm().let { it.first != it.second })
+        show(R.id.btnOrient, !win && !selectedLabel.round && physSizeMm().let { it.first != it.second })
         show(R.id.switchSoftEdge, photo)
         show(R.id.depthBox, photo && depth != null)
-        show(R.id.btnFindSubject, photo && depth == null && ImageStore.original != null && !calibration)
+        show(R.id.btnFindSubject, photo && (depth == null || ImageStore.depthIsModel) && ImageStore.original != null && !calibration)
+        findViewById<MaterialButton>(R.id.btnFindSubject).setText(if (ImageStore.depthIsModel) R.string.remove_subject else R.string.find_subject)
         showDepthDetails()
         show(R.id.switchOverscan, photo && selectedLabel.round)
         show(R.id.captionLayout, photo && !win && instantOn())
@@ -506,6 +515,7 @@ class MainActivity : AppCompatActivity() {
         show(R.id.switchInstantBlack, photo && !win && !selectedLabel.round && instantOn())
         val stampOk = photo && !selectedLabel.round
         show(R.id.toggleStamp, stampOk)
+        show(R.id.txtStampTitle, stampOk)
         show(R.id.stampLayout, stampOk && prefs.getInt("stampMode", 0) == 2)
         show(R.id.toggleStampColor, stampOk && prefs.getInt("stampMode", 0) != 0 && (win || !instantOn()))
         show(R.id.panoGapBox, panoN() > 1)
@@ -616,8 +626,8 @@ class MainActivity : AppCompatActivity() {
         frame = frameIds.indexOf(toggleFrame.checkedButtonId).coerceAtLeast(0),
         label = selectedLabel.name,
         qr = findViewById<MaterialSwitch>(R.id.switchQr).isChecked,
-        color = if (R.id.textRed == toggleTextColor.checkedButtonId) 1 else 0,
-        frameColor = if (R.id.frameRed == toggleFrameColor.checkedButtonId) 1 else 0,
+        color = if (textRed) 1 else 0,
+        frameColor = if (frameRed) 1 else 0,
     )
 
     private fun applyTextStyle(s: TextStyle) {
@@ -627,10 +637,25 @@ class MainActivity : AppCompatActivity() {
         listOf(R.id.styleBold to s.bold, R.id.styleItalic to s.italic, R.id.styleUnderline to s.underline)
             .forEach { (id, on) -> if (on) toggleStyle.check(id) else toggleStyle.uncheck(id) }
         findViewById<MaterialSwitch>(R.id.switchQr).isChecked = s.qr
-        toggleTextColor.check(if (s.color == 1) R.id.textRed else R.id.textBlack)
-        toggleFrameColor.check(if (s.frameColor == 1) R.id.frameRed else R.id.frameBlack)
+        textRed = s.color == 1; frameRed = s.frameColor == 1
+        styleColourButtons()
         editText.setText(s.text)
         editText.setSelection(editText.length())
+    }
+
+    // Each button shows its own colour: red when that part prints red, the normal text colour for black
+    private fun styleColourButtons() {
+        val red = 0xFFE53935.toInt()
+        val normal = com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface, 0)
+        findViewById<MaterialButton>(R.id.btnTextColor).setTextColor(if (textRed) red else normal)
+        findViewById<MaterialButton>(R.id.btnFrameColor).setTextColor(if (frameRed) red else normal)
+    }
+
+    private fun colourChanged() {
+        prefs.edit().putInt("textColor", if (textRed) 1 else 0).putInt("textFrameColor", if (frameRed) 1 else 0).apply()
+        styleColourButtons()
+        scheduleRender()
+        updateTemplateButton()
     }
 
     private fun updateTemplateButton() {
@@ -950,6 +975,14 @@ class MainActivity : AppCompatActivity() {
         return wmm to hmm
     }
 
+    private fun updateOrientButton() {
+        findViewById<MaterialButton>(R.id.btnOrient).setText(when (prefs.getInt("orient", 0)) {
+            1 -> R.string.orient_land_cw
+            2 -> R.string.orient_land_ccw
+            else -> R.string.orient_upright
+        })
+    }
+
     // 0 upright, 1/2 landscape (the picture is laid out wide and turned clockwise / counter-clockwise
     // for the print). Only for plain rectangular labels that are not square; charts stay upright.
     private fun orient(): Int {
@@ -1223,6 +1256,7 @@ class MainActivity : AppCompatActivity() {
     // Back from the booth: the last picture stays on the canvas, so its settings can still be changed
     override fun onResume() {
         super.onResume()
+        updateOrientButton()
         val b = Booth.lastPhoto ?: return
         Booth.lastPhoto = null
         findViewById<MaterialButtonToggleGroup>(R.id.toggleAppMode).check(R.id.modeAppPhoto)
@@ -1231,8 +1265,24 @@ class MainActivity : AppCompatActivity() {
         ImageStore.free = true
         source = b
         depth = null
+        // A portrait picture comes with its subject mask and the background setting it was taken with
+        val mask = Booth.lastMask; Booth.lastMask = null
+        val bg = Booth.lastBackground; Booth.lastBackground = null
+        if (mask != null && bg != null) {
+            ImageStore.depth = DepthMap(mask, 0.5f)
+            ImageStore.depthIsModel = true
+            ImageStore.croppedDepth = ImageStore.rotatedDepth()
+            depth = ImageStore.croppedDepth
+            background = ImageProcessor.Background.valueOf(bg)
+            prefs.edit().putString("background", bg).apply()
+            // The booth works with at least 85 % so the effect is clear; the preview here should match
+            sliderBgStrength.value = maxOf(sliderBgStrength.value, 85f)
+            sliderDepthCut.value = 50f
+            showDepthDetails()
+        }
         calibration = false
         sweep = false
+        updateOrientButton()
         applyModeVisibility()
         scheduleRender()
     }
@@ -1290,10 +1340,10 @@ class MainActivity : AppCompatActivity() {
             printParts(p, parts, twoColor, density, labelType, copies, it)
             val title = if (textStyle != null) textStyle.text.replace('\n', ' ').take(30)
                 else findViewById<TextView>(R.id.txtDims).text.toString()
-            withContext(Dispatchers.IO) {
+            if (keepHistory()) withContext(Dispatchers.IO) {
                 runCatching { PrintArchive.save(this@MainActivity, parts, r.preview, title, twoColor, density, labelType, copies) }
             }
-            textStyle?.let { history.addRecent(it) }
+            if (keepHistory()) textStyle?.let { history.addRecent(it) }
         }
     }
 
@@ -1306,6 +1356,7 @@ class MainActivity : AppCompatActivity() {
             val mask = withContext(Dispatchers.Default) { SubjectMask.find(orig) }
             if (mask == null) return@launch toast(getString(R.string.subject_not_found))
             ImageStore.depth = DepthMap(mask, 0.5f)
+            ImageStore.depthIsModel = true
             val n = ImageStore.norm
             ImageStore.croppedDepth = ImageStore.rotatedDepth()?.let { if (n != null) ImageStore.crop(it, n) else it }
             depth = ImageStore.croppedDepth
@@ -1314,6 +1365,17 @@ class MainActivity : AppCompatActivity() {
             applyModeVisibility()
             scheduleRender()
         }
+    }
+
+    // Back to the photo as it was: a photo with a depth map of its own never gets here (no button)
+    private fun removeSubject() {
+        ImageStore.depth = null
+        ImageStore.croppedDepth = null
+        ImageStore.depthIsModel = false
+        depth = null
+        showDepthDetails()
+        applyModeVisibility()
+        scheduleRender()
     }
 
     // Parts go out one after another, all copies of the set in turn (panorama: label 1, 2, 3, then again)
@@ -1330,6 +1392,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     // The list of recent prints; a tap offers to print the same dots again
+    private fun keepHistory() = prefs.getBoolean("keepHistory", true)
+
     private fun showPrints() {
         val dialog = BottomSheetDialog(this)
         val list = LinearLayout(this).apply {
@@ -1370,6 +1434,20 @@ class MainActivity : AppCompatActivity() {
             row.setOnClickListener { dialog.dismiss(); askReprint(e) }
             list.addView(row)
         }
+        if (entries.isNotEmpty()) list.addView(MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            setText(R.string.prints_clear)
+            setOnClickListener {
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setMessage(R.string.prints_clear_ask)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.delete) { _, _ ->
+                        PrintArchive.list(this@MainActivity).forEach { PrintArchive.delete(it) }
+                        history.clearRecent()
+                        dialog.dismiss()
+                    }
+                    .show()
+            }
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16f).toInt() })
         dialog.setContentView(NestedScrollView(this).apply { addView(list) })
         // On tablets the sheet would stay at its peek height, with the list below the screen edge
         dialog.behavior.skipCollapsed = true
@@ -1572,7 +1650,7 @@ class MainActivity : AppCompatActivity() {
 
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, gap, pad, 0)
+            setPadding(pad, gap, pad, pad)
             if (p == null) addView(TextView(this@MainActivity).apply {
                 text = getString(R.string.print_need_printer); textSize = 12f
                 setPadding(0, 0, 0, gap)
@@ -1608,7 +1686,7 @@ class MainActivity : AppCompatActivity() {
             ))
             addView(row(
                 button("Red/black test", p != null) { dialog?.dismiss(); printColorTest(gray = false) },
-                button("Save print bitmap") {
+                button("Save bitmap") {
                     // Exactly the dots that would be sent, 1:1, for checking patterns without a print
                     val r = rendered ?: return@button toast(getString(R.string.print_need_photo))
                     val px = IntArray(r.bits.size) { i ->
@@ -1627,6 +1705,18 @@ class MainActivity : AppCompatActivity() {
             })
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
             addView(button("Camera info") { runCatching { CameraInfo.describe(this@MainActivity) }.getOrElse { listOf("Camera info failed: ${it.message}") }.asReversed().forEach { appendLog(it) } })
+            addView(LinearLayout(this@MainActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(this@MainActivity).apply { text = "Keep history of prints (recent prints, signs)" },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(com.google.android.material.materialswitch.MaterialSwitch(this@MainActivity).apply {
+                    isChecked = keepHistory()
+                    setOnCheckedChangeListener { _, on ->
+                        prefs.edit().putBoolean("keepHistory", on).apply()
+                        toast(if (on) "History is saved" else "History is no longer saved; delete the old one in the list")
+                    }
+                })
+            })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
             })

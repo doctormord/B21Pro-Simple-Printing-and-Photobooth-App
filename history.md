@@ -6,6 +6,17 @@ pipeline.
 
 ## 1.5.0 (unreleased)
 
+### Phone fixes (beta 6)
+Screenshots from the phone showed buttons that did not fit: the text and frame colours (*Text: black* ...
+cut to "T…"), *Stamp off*. The colours are now two buttons, *Text* and *Frame*, each toggling and
+showing its own colour; the stamp group has a title and a short *Off*. Landscape is one button
+(upright or landscape, long press for the other direction) instead of three segments, and it is in
+the booth as well. The history button moved next to camera and gallery, *Delete all* clears the
+list and the recent signs, and the debug console has a switch to keep no history. The debug
+console's log no longer runs into the dialog's rounded corners. A wider label can have a strip too
+(the pictures side by side). From the booth's review a pencil button opens the picture in the main
+screen, with its subject mask and the background setting; *Find subject* can be taken back.
+
 ### Portrait mode and subject mask
 The background options (lighter, darker, other raster, red) only worked for Samsung portrait photos,
 which carry a depth map. *Camera info* showed that the phone's cameras have no depth output (but a

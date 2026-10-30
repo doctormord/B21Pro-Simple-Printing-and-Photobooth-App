@@ -45,18 +45,21 @@ import kotlinx.coroutines.withContext
 object Booth {
     class Config(
         val label: LabelPreset,
-        val widthMm: Double,
-        val heightMm: Double,
-        val photoAspect: Float,
+        var widthMm: Double,
+        var heightMm: Double,
+        var photoAspect: Float,
         val options: ImageProcessor.Options,
         val density: Int,
         val twoColorRoll: Boolean,
         val labelType: Int,
         val copies: Int,
-        val orient: Int = 0,
+        var orient: Int = 0,
         val stampMode: Int = 0,
         val stampText: String = "",
     ) {
+        // The label as it sticks on the printer (width across the head), whatever the orientation
+        fun physical() = if (orient == 0) widthMm to heightMm else heightMm to widthMm
+
         // Strips always carry a line at the bottom: the typed text, else the date
         fun footer() = if (stampMode == 2 && stampText.isNotBlank()) stampText else PhotoStrip.dateText()
     }
@@ -68,6 +71,9 @@ object Booth {
     var onDisconnected: (() -> Unit)? = null
     // Last picture taken (cut to the frame), picked up by MainActivity when the booth closes
     var lastPhoto: Bitmap? = null
+    // With a portrait picture: the subject mask and the background setting (Background name), for the main screen
+    var lastMask: Bitmap? = null
+    var lastBackground: String? = null
 }
 
 // Dims everything outside the label area so you see what will be printed
@@ -91,7 +97,7 @@ class BoothOverlay(context: Context, attrs: AttributeSet?) : View(context, attrs
         super.onLayout(changed, l, t, r, b)
         // Space between top bar and shutter
         val left = 24 * dp
-        val top = 84 * dp
+        val top = 104 * dp
         val right = width - 24 * dp
         val bottom = height - 330 * dp
         val aw = right - left
@@ -160,6 +166,7 @@ class BoothActivity : AppCompatActivity() {
         get() = prefs.getInt("boothPortrait", 0)
         set(v) = prefs.edit().putInt("boothPortrait", v).apply()
     private lateinit var btnPortrait: MaterialButton
+    private lateinit var btnOrient: MaterialButton
     private lateinit var txtHint: TextView
     private lateinit var toggleMode: com.google.android.material.button.MaterialButtonToggleGroup
     private lateinit var toggleFrame: com.google.android.material.button.MaterialButtonToggleGroup
@@ -220,6 +227,18 @@ class BoothActivity : AppCompatActivity() {
         overlay.round = cfg.label.round
         txtHint = findViewById(R.id.txtBoothHint)
         btnPortrait = findViewById(R.id.btnBoothPortrait)
+        btnOrient = findViewById(R.id.btnBoothOrient)
+        val (pw, ph) = cfg.physical()
+        btnOrient.visibility = if (cfg.label.round || cfg.label.window != null || pw == ph) View.GONE else View.VISIBLE
+        updateOrientButton()
+        btnOrient.setOnClickListener {
+            if (!busy) turnLabel(if (cfg.orient == 0) prefs.getInt("orientDir", 1) else 0)
+        }
+        btnOrient.setOnLongClickListener {
+            if (!busy && cfg.orient != 0) turnLabel(3 - cfg.orient)
+            true
+        }
+        findViewById<View>(R.id.btnBoothEdit).setOnClickListener { finish() }
         if (portrait == 4 && !cfg.twoColorRoll) portrait = 0
         updatePortraitButton()
         btnPortrait.setOnClickListener {
@@ -231,14 +250,7 @@ class BoothActivity : AppCompatActivity() {
         }
         toggleMode = findViewById(R.id.toggleBoothMode)
         toggleFrame = findViewById(R.id.toggleBoothFrame)
-        for ((i, id) in modeIds.withIndex()) {
-            val ok = PhotoStrip.allowed(i, areaWmm, areaHmm, cfg.label.round)
-            findViewById<View>(id).isEnabled = ok
-            if (!ok && mode == i) mode = 0
-        }
-        // Modes that do not fit the label are greyed out; hide the row when only single is left
-        toggleMode.visibility = if (modeIds.drop(1).any { findViewById<View>(it).isEnabled }) View.VISIBLE else View.GONE
-        toggleMode.check(modeIds[mode])
+        refreshModes()
         toggleFrame.check(if (blackFrame) R.id.boothFrameBlack else R.id.boothFrameWhite)
         toggleMode.addOnButtonCheckedListener { _, id, checked ->
             if (checked && !busy) { mode = modeIds.indexOf(id); updateMode() }
@@ -247,14 +259,7 @@ class BoothActivity : AppCompatActivity() {
             if (checked) { blackFrame = id == R.id.boothFrameBlack; updateMode() }
         }
         updateMode()
-        val size = if (cfg.label.round) getString(R.string.size_round, fmt(cfg.widthMm))
-            else getString(R.string.size_rect, fmt(cfg.widthMm), fmt(cfg.heightMm))
-        val extras = buildList {
-            if (cfg.options.instant) add("Instant")
-            if (cfg.copies > 1) add("${cfg.copies}×")
-        }.joinToString(" · ")
-        findViewById<TextView>(R.id.txtBoothInfo).text =
-            "${cfg.label.title(this)} · $size" + if (extras.isNotEmpty()) "\n$extras" else ""
+        updateInfo()
 
         sound.load(MediaActionSound.SHUTTER_CLICK)
         updateTimerButton()
@@ -317,6 +322,63 @@ class BoothActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    // Modes that do not fit the label are greyed out; hide the row when only single is left
+    private fun refreshModes() {
+        val cfg = Booth.config ?: return
+        for ((i, id) in modeIds.withIndex()) {
+            val ok = PhotoStrip.allowed(i, areaWmm, areaHmm, cfg.label.round)
+            findViewById<View>(id).isEnabled = ok
+            if (!ok && mode == i) mode = 0
+        }
+        toggleMode.visibility = if (modeIds.drop(1).any { findViewById<View>(it).isEnabled }) View.VISIBLE else View.GONE
+        toggleMode.check(modeIds[mode])
+    }
+
+    private fun updateInfo() {
+        val cfg = Booth.config ?: return
+        val size = if (cfg.label.round) getString(R.string.size_round, fmt(cfg.widthMm))
+            else getString(R.string.size_rect, fmt(cfg.widthMm), fmt(cfg.heightMm))
+        val extras = buildList {
+            if (cfg.options.instant) add("Instant")
+            if (cfg.copies > 1) add("${cfg.copies}×")
+        }.joinToString(" · ")
+        findViewById<TextView>(R.id.txtBoothInfo).text =
+            "${cfg.label.title(this)} · $size" + if (extras.isNotEmpty()) "\n$extras" else ""
+    }
+
+    private fun updateOrientButton() {
+        val cfg = Booth.config ?: return
+        btnOrient.setText(when (cfg.orient) { 1 -> R.string.orient_land_cw; 2 -> R.string.orient_land_ccw; else -> R.string.orient_upright })
+    }
+
+    // What the photo area looks like in the viewfinder (same rules as the main screen)
+    private fun photoAspectFor(cfg: Booth.Config): Float {
+        cfg.label.window?.let { return (it.w / it.h).toFloat() }
+        if (cfg.label.round) return 1f
+        val w = minOf(cfg.widthMm, if (cfg.orient == 0) 50.0 else 100000.0)
+        if (cfg.options.instant) {
+            val r = ImageProcessor.instantPhotoRect(ImageProcessor.mmToPx(w), ImageProcessor.mmToPx(cfg.heightMm))
+            return r.width().toFloat() / r.height()
+        }
+        return (w / cfg.heightMm).toFloat()
+    }
+
+    // Upright or landscape, like the main screen; the other direction with a long press
+    private fun turnLabel(to: Int) {
+        val cfg = Booth.config ?: return
+        val (pw, ph) = cfg.physical()
+        cfg.orient = to
+        cfg.widthMm = if (to == 0) pw else ph
+        cfg.heightMm = if (to == 0) ph else pw
+        cfg.photoAspect = photoAspectFor(cfg)
+        prefs.edit().putInt("orient", to).apply()
+        if (to != 0) prefs.edit().putInt("orientDir", to).apply()
+        updateOrientButton()
+        updateInfo()
+        refreshModes()
+        updateMode()
+    }
+
     private fun updatePortraitButton() {
         btnPortrait.text = resources.getStringArray(R.array.booth_portrait)[portrait]
     }
@@ -373,6 +435,7 @@ class BoothActivity : AppCompatActivity() {
         shutter.isEnabled = false
         toggleMode.children.forEach { it.isEnabled = false }
         btnPortrait.isEnabled = false
+        btnOrient.isEnabled = false
         scope.launch {
             val cfg = Booth.config ?: return@launch
             val n = PhotoStrip.count(mode)
@@ -398,6 +461,8 @@ class BoothActivity : AppCompatActivity() {
                 if (n == 1) masks[0] else PhotoStrip.composeMask(masks.filterNotNull(), labelW, labelH, mode, cfg.footer())
             } else null
             if (usePortrait && maskImg == null) toast(getString(R.string.subject_not_found))
+            Booth.lastMask = maskImg
+            Booth.lastBackground = if (maskImg != null) portraitBackground().name else null
             val r = withContext(Dispatchers.Default) {
                 val label = if (n == 1) shots[0] else PhotoStrip.compose(shots, labelW, labelH, mode, blackFrame, cfg.footer())
                 Booth.lastPhoto = label
@@ -426,7 +491,7 @@ class BoothActivity : AppCompatActivity() {
     }
 
     private fun finishSeries() {
-        busy = false; shutter.isEnabled = true; btnPortrait.isEnabled = true
+        busy = false; shutter.isEnabled = true; btnPortrait.isEnabled = true; btnOrient.isEnabled = true
         toggleMode.children.forEachIndexed { i, v ->
             v.isEnabled = PhotoStrip.allowed(i, areaWmm, areaHmm, Booth.config!!.label.round)
         }
@@ -534,7 +599,7 @@ class BoothActivity : AppCompatActivity() {
             setStage(if (ok) Stage.DONE else Stage.REVIEW)
             if (ok) {
                 val title = "${cfg.label.title(this@BoothActivity)} · Booth"
-                withContext(Dispatchers.IO) {
+                if (prefs.getBoolean("keepHistory", true)) withContext(Dispatchers.IO) {
                     runCatching { PrintArchive.save(this@BoothActivity, listOf(r), r.preview, title, cfg.twoColorRoll,
                         cfg.density, cfg.labelType, cfg.copies) }
                 }

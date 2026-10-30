@@ -75,9 +75,11 @@
                         android:layout_height="match_parent" android:scaleType="fitXY" />
                 </com.google.android.material.card.MaterialCardView>
             </FrameLayout>
+            <LinearLayout android:id="@+id/stageButtons" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:orientation="vertical" android:layout_gravity="start|center_vertical" android:layout_margin="6dp">
             <LinearLayout android:id="@+id/photoActions" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:orientation="vertical"
-                android:layout_gravity="start|center_vertical" android:layout_margin="6dp">
+                >
                 <com.google.android.material.button.MaterialButton android:id="@+id/btnCamera"
                     style="@style/Widget.Material3.Button.IconButton.Filled"
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -86,6 +88,11 @@
                     style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                     app:icon="@drawable/ic_gallery" android:contentDescription="@string/gallery" />
+            </LinearLayout>
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnPrints"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    app:icon="@drawable/ic_history" android:contentDescription="@string/prints_title" />
             </LinearLayout>
             <com.google.android.material.button.MaterialButton android:id="@+id/btnCrop"
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
@@ -176,27 +183,12 @@
 
                     <LinearLayout android:id="@+id/textColorBox" android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginTop="8dp" android:visibility="gone">
-                    <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleTextColor"
-                        android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-                        app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/textBlack">
-                        <com.google.android.material.button.MaterialButton android:id="@+id/textBlack"
-                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
-                            android:layout_height="wrap_content" android:text="@string/text_black" />
-                        <com.google.android.material.button.MaterialButton android:id="@+id/textRed"
-                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
-                            android:layout_height="wrap_content" android:text="@string/text_red" />
-                    </com.google.android.material.button.MaterialButtonToggleGroup>
-                    <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleFrameColor"
-                        android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/frameBlack">
-                        <com.google.android.material.button.MaterialButton android:id="@+id/frameBlack"
-                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
-                            android:layout_height="wrap_content" android:text="@string/frame_black" />
-                        <com.google.android.material.button.MaterialButton android:id="@+id/frameRed"
-                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
-                            android:layout_height="wrap_content" android:text="@string/frame_red" />
-                    </com.google.android.material.button.MaterialButtonToggleGroup>
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnTextColor"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:text="@string/text_color_label" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnFrameColor"
+                        style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="@string/frame_color_label" />
                 </LinearLayout>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -297,19 +289,10 @@
                 <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchInstantBlack"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="4dp" android:visibility="gone" android:text="@string/instant_black" />
-                    <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleOrient"
-                        android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                        android:visibility="gone" app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@+id/orient0">
-                        <com.google.android.material.button.MaterialButton android:id="@+id/orient0"
-                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
-                            android:layout_height="wrap_content" android:text="@string/orient_upright" />
-                        <com.google.android.material.button.MaterialButton android:id="@+id/orient1"
-                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
-                            android:layout_height="wrap_content" android:text="@string/orient_land_cw" />
-                        <com.google.android.material.button.MaterialButton android:id="@+id/orient2"
-                            style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_weight="1"
-                            android:layout_height="wrap_content" android:text="@string/orient_land_ccw" />
-                    </com.google.android.material.button.MaterialButtonToggleGroup>
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnOrient"
+                    style="?attr/materialButtonOutlinedStyle" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" app:icon="@drawable/ic_rotate" android:visibility="gone"
+                    android:text="@string/orient_upright" />
                 <LinearLayout android:id="@+id/panoBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
                     <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/panorama" android:textAppearance="?attr/textAppearanceLabelLarge" />
@@ -337,6 +320,9 @@
                             android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:inputType="textCapSentences" android:maxLength="40" />
                     </com.google.android.material.textfield.TextInputLayout>
+                <TextView android:id="@+id/txtStampTitle" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:text="@string/stamp_title" android:visibility="gone"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
                 <com.google.android.material.button.MaterialButtonToggleGroup android:id="@+id/toggleStamp"
                     android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
                     android:visibility="gone" app:singleSelection="true" app:selectionRequired="true">
@@ -609,16 +595,10 @@
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:max="1000" android:visibility="invisible" android:layout_marginBottom="8dp"
                 app:trackCornerRadius="4dp" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                <com.google.android.material.button.MaterialButton android:id="@+id/btnPrints"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                    android:layout_width="64dp" android:layout_height="64dp" android:layout_marginEnd="8dp"
-                    app:icon="@drawable/ic_history" app:iconSize="28dp" android:contentDescription="@string/prints_title" />
             <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint"
-                    android:layout_width="0dp" android:layout_weight="1" android:layout_height="64dp"
+                    android:layout_width="match_parent" android:layout_height="64dp"
                     android:text="@string/print" android:textSize="17sp" app:icon="@drawable/ic_print"
                     app:iconGravity="textStart" app:cornerRadius="32dp" android:enabled="false" />
-            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

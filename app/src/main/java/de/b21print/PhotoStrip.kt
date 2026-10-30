@@ -16,15 +16,18 @@ object PhotoStrip {
 
     fun count(mode: Int) = when (mode) { STRIP3 -> 3; GRID4 -> 4; else -> 1 }
 
-    // Which modes the label shape allows: the strip needs a label taller than wide, 2 × 2 a
-    // label that is not wider than tall. Round labels only take single shots; a window label counts with the size of its window.
+    // Which modes the label shape allows: the strip needs a label that is taller or wider than square
+    // (the pictures below or beside each other), 2 × 2 any label. Round labels only take single shots; a
+    // window label counts with the size of its window.
     fun allowed(mode: Int, wMm: Double, hMm: Double, round: Boolean): Boolean {
         if (mode == SINGLE) return true
         if (round) return false
         val a = wMm / hMm
         return when (mode) {
-            STRIP3 -> a < 0.95
-            GRID4 -> a < 1.05
+            // Taller than wide: the pictures one below the other; wider than tall: side by side. A
+            // square label gets the grid only (a strip would be three thin bands).
+            STRIP3 -> a < 0.95 || a > 1.05
+            GRID4 -> true
             else -> false
         }
     }
@@ -54,7 +57,10 @@ object PhotoStrip {
         val innerH = h - 2 * b - fh
         val tiles = ArrayList<Rect>()
         when (mode) {
-            STRIP3 -> {
+            STRIP3 -> if (w > h * 1.05) {
+                val tw = (innerW - 2 * b) / 3
+                for (i in 0 until 3) tiles += Rect(b + i * (tw + b), b, b + i * (tw + b) + tw, b + innerH)
+            } else {
                 val th = (innerH - 2 * b) / 3
                 for (i in 0 until 3) tiles += Rect(b, b + i * (th + b), b + innerW, b + i * (th + b) + th)
             }

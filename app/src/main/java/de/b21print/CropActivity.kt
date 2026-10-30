@@ -20,10 +20,12 @@ object ImageStore {
     // with the photo by the same rotation and normalised crop rectangle
     var depth: DepthMap? = null
     var croppedDepth: Bitmap? = null
+    // The depth map is a subject mask from the on-device model, not the photo's own
+    var depthIsModel = false
 
     fun reset(b: Bitmap, d: DepthMap? = null) {
         original = b; rotation = 0; norm = null; free = false; cropped = null
-        depth = d; croppedDepth = null
+        depth = d; croppedDepth = null; depthIsModel = false
     }
 
     fun rotated(): Bitmap? = original?.let { turn(it) }

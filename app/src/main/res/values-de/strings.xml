@@ -218,7 +218,7 @@
     <string name="booth_frame_black">Schwarzer Rand</string>
     <string name="booth_shot_n">Foto %1$d von %2$d</string>
     <string name="instant_black">Instant-Rahmen schwarz</string>
-    <string name="stamp_off">Stempel aus</string>
+    <string name="stamp_off">Aus</string>
     <string name="stamp_date">Datum</string>
     <string name="stamp_text">Text</string>
     <string name="stamp_hint">Stempeltext (max. 32)</string>
@@ -232,10 +232,6 @@
     <string name="prints_mode_mono">1-Bit</string>
     <string name="prints_mode_red">Rot/Schwarz</string>
     <string name="prints_parts">%d Etiketten</string>
-    <string name="text_black">Text: schwarz</string>
-    <string name="text_red">Text: rot</string>
-    <string name="frame_black">Rahmen: schwarz</string>
-    <string name="frame_red">Rahmen: rot</string>
     <string name="find_subject">Motiv freistellen</string>
     <string name="finding_subject">Suche das Motiv …</string>
     <string name="subject_not_found">Kein Motiv gefunden</string>
@@ -246,4 +242,12 @@
         <item>Porträt: Raster</item>
         <item>Porträt: rot</item>
     </string-array>
+    <string name="text_color_label">Text</string>
+    <string name="frame_color_label">Rahmen</string>
+    <string name="stamp_title">Stempel</string>
+    <string name="booth_edit">Im Hauptfenster bearbeiten</string>
+    <string name="remove_subject">Motivmaske entfernen</string>
+    <string name="prints_clear">Alles löschen</string>
+    <string name="prints_clear_ask">Alle letzten Drucke und die Liste der zuletzt gedruckten Schilder löschen? Vorlagen bleiben.</string>
+    <string name="orient_hint">Tippen: Hoch oder Quer · lang drücken: andere Drehrichtung</string>
 </resources>

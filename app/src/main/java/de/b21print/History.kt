@@ -36,6 +36,8 @@ class History(private val prefs: SharedPreferences) {
         return added
     }
 
+    fun clearRecent() = save(RECENT, emptyList())
+
     fun removeRecent(s: TextStyle) = save(RECENT, load(RECENT).apply { remove(s) })
 
     companion object {

@@ -40,7 +40,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Stamp: the date and time or a short text (up to 32 characters, one line, pixel font) at the bottom
   right, punched into the picture in white or black (also in the window of Memory Film labels), or
   set into the instant frame
-- Landscape: non-square labels can be laid out and printed turned, clockwise or counter-clockwise
+- Landscape: non-square labels can be laid out and printed turned; one button switches between upright
+  and landscape (a long press turns the landscape the other way), also in the photo booth
 - Panorama: one photo or sign spread over 1–6 labels printed one after another, with an optional gap
   compensation for the space between stuck-on labels
 - Labels with a pre-printed frame, NB835 *Memory Film* (54 × 67 mm) and NB838 *Photo frame*
@@ -53,7 +54,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - QR code instead of text: the largest error correction level whose modules still print at 3 dots
   or more, whole-dot modules and a quiet zone
 - Three fonts, bold/italic/underline, five frame styles
-- On two-colour rolls the text and the frame can each print black or red (a QR code stays black)
+- On two-colour rolls the text and the frame can each print black or red: the buttons *Text* and
+  *Frame* toggle and show their own colour (a QR code stays black)
 - Voice input
 - History of the last 50 printed signs, and saved templates
 
@@ -65,11 +67,12 @@ out of the printer. The gray prints were made with a patched printer firmware (s
   strength come from the main screen's background settings (at least 85 % strength for the effect).
   With nobody in the picture the effect is skipped
 - Three modes: one picture; a strip of three pictures one below the other; a 2 × 2 grid. One press
-  of the shutter takes the whole series, like a photo booth. A strip needs a label taller than wide,
-  the grid a label that is not wider than tall; on labels with a pre-printed window the layout
-  fills the window. The frame between the pictures is white or black, and a line at the bottom
+  of the shutter takes the whole series, like a photo booth. On a label taller than wide the strip stacks the pictures, on
+  a wider one it puts them side by side; a square label takes the grid only. On labels with a
+  pre-printed window the layout fills the window. The frame between the pictures is white or black, and a line at the bottom
   carries the date (or the stamp text) in the opposite colour
-- Review before printing: delete or print, then print again or take the next photo
+- Review before printing: delete or print, then print again or take the next photo; the pencil
+  button opens the picture in the main screen (with its subject mask and background setting)
 - Uses the label, frame, caption, raster and density settings from the main screen
 - Volume keys and Bluetooth selfie remotes work as a shutter
 
@@ -81,7 +84,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Two-colour rolls (black + red)
 - Recent prints: the last 20 prints (photos, signs, booth pictures) are kept as the exact dots that
   were sent, with a thumbnail, and can be printed again with one tap, without the source or the
-  settings it came from (the button left of *Print*)
+  settings it came from (the clock button beside the picture). *Delete all* empties the list and the
+  recently printed signs; a switch in the debug console stops the history altogether
 - Battery level, voltage and temperature of the printer under the connect chip; a warning before a
   print when the battery is low
 
@@ -248,8 +252,10 @@ Signs use the same label and print settings:
 
 ![Recent prints](docs/recent-prints.png)
 
-The button left of *Print* lists the last 20 prints. A tap shows the print and offers to print it
-again with the stored density, paper type and number of copies, or to delete it.
+The clock button beside the picture (with the camera and gallery buttons) lists the last 20 prints. A
+tap shows the print and offers to print it again with the stored density, paper type and number of
+copies, or to delete it. *Delete all* at the bottom clears the list and the recently printed signs
+(templates stay); the debug console has a switch to keep no history at all.
 
 ## Photo booth
 
@@ -352,7 +358,7 @@ the BLE characteristic and shows every reply. It also offers:
   ones next to the long bands print lighter. For comparing printer firmware.
 - **Red/black test**: black ramp, red ramp, both side by side, 8-dot stripes and a 1-dot
   checkerboard in red and black.
-- **Save print bitmap** / **Print bitmap file**: the dots of the current print as a PNG (1:1, gray
+- **Save bitmap** / **Print bitmap file**: the dots of the current print as a PNG (1:1, gray
   levels as gray, no red) and the other way round, a PNG sent as a 1-bit print. For checking
   patterns without paper; for repeating a print use *Recent prints* instead.
 - **Camera info**: per camera the facing, whether it has a depth output, which vendor extensions

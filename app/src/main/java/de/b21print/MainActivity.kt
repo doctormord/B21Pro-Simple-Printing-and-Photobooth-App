@@ -1489,16 +1489,19 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(com.google.android.material.color.MaterialColors.getColor(
                 this, com.google.android.material.R.attr.colorSurfaceContainerHighest))
         }
-        fun appendLog(line: String) = runOnUiThread {
+        fun addLine(line: String) = runOnUiThread {
             val t = SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(Date())
             logView.text = "$t  $line\n${logView.text}"
         }
+        // Everything the console shows also goes to logcat (adb logcat -s B21); lines that come from
+        // log() are in logcat already
+        fun appendLog(line: String) { android.util.Log.i("B21", line); addLine(line) }
         p?.rawListener = { bytes ->
             val hex = bytes.joinToString(" ") { "%02x".format(it) }
             val txt = bytes.map { if (it in 32..126) it.toInt().toChar() else '.' }.joinToString("")
             appendLog("RX [$hex]  \"$txt\"")
         }
-        consoleSink = { appendLog(it) }
+        consoleSink = { addLine(it) }
 
         val input = com.google.android.material.textfield.TextInputEditText(this).apply {
             setText(""); hint = "Raw text"; setSingleLine(true); textSize = 14f
@@ -1602,7 +1605,7 @@ class MainActivity : AppCompatActivity() {
                 startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*"), REQ_BITMAP_FILE)
             })
             addView(button("Printer diagnostics", p != null) { scope.launch { p?.diagnose() } })
-            addView(button("Camera info") { runCatching { CameraInfo.describe(this@MainActivity) }.getOrElse { listOf("Camera info failed: ${it.message}") }.also { l -> l.forEach { android.util.Log.i("B21", it) } }.asReversed().forEach { appendLog(it) } })
+            addView(button("Camera info") { runCatching { CameraInfo.describe(this@MainActivity) }.getOrElse { listOf("Camera info failed: ${it.message}") }.asReversed().forEach { appendLog(it) } })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
                 if (p != null) setTextColor(getColor(R.color.brand))
             })

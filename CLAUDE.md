@@ -81,6 +81,9 @@ Things that look like bugs but are deliberate:
   (`B21_KEYSTORE`, `B21_KEYSTORE_PASSWORD`, `B21_KEY_ALIAS`, `B21_KEY_PASSWORD`); without it the
   debug key is used. Never commit a keystore or passwords, and check that no personal names end up
   in commits, files or certificates.
+- Everything the app shows in a log (main log, debug console, diagnostics) must also reach Android's
+  log under the tag `B21`, so it can be read with `adb logcat -s B21` without touching the device. A
+  new diagnostic that only fills a text view is not finished.
 - Comments explain why, not what; match the existing density.
 - Settings that should survive a restart go into the `prefs` SharedPreferences.
 

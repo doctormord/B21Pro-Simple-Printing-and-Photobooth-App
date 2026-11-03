@@ -169,7 +169,10 @@ object TestChart {
     // Caption between the bottom corner squares
     private fun calCaption(px: ByteArray, w: Int, h: Int, lay: CalLayout, caption: String, ink: Int) {
         val f = lay.corners[0].w
-        val s = maxOf(1, (f / 9))
+        // Between the bottom corner squares; smaller type when the caption would run over them
+        val avail = w - 2 * (lay.margin + f + lay.gut)
+        var s = maxOf(1, (f / 9))
+        while (s > 1 && caption.length * 6 * s > avail) s--
         var x = lay.margin + f + lay.gut
         val y = h - lay.margin - f + (f - 7 * s) / 2
         for (c in caption.uppercase()) {
@@ -236,6 +239,49 @@ object TestChart {
                 }
                 y += rh + gap
             }
+        }
+        return px
+    }
+
+    // Ladder test for the gray engine: raw rows, no dithering. The left half is black on even rows
+    // only, the right half on odd rows only, in sections of two levels (a, b; 15 and 7 by default). In a zone that
+    // prints with white gaps (scanlines), lines of the two halves at the same height mean the paper
+    // moves in pairs of rows; one half blank means a row got no heat.
+    fun grayLadder(h: Int, caption: String, a: Int = 15, b: Int = 7): ByteArray {
+        val w = Niimbot.COLOR_HEAD
+        val px = ByteArray(w * h)
+        val m = 24; val lm = 64
+        stamp(px, w, h, lm, m, caption, w, 15)
+        val top = m + 40
+        val sections = 4
+        val sh = (h - top) / sections
+        for (y in top until h) {
+            val level = if (((y - top) / sh).coerceAtMost(sections - 1) % 2 == 0) a else b
+            val (xa, xb) = if (y % 2 == 0) lm to w / 2 - 4 else w / 2 + 4 to w - m
+            for (x in xa until xb) px[y * w + x] = level.toByte()
+        }
+        return px
+    }
+
+    // Checkerboard of flat gray cells in 25 / 50 / 75 / 100 % (levels CHECK_LEVELS). The level of a
+    // cell runs along one diagonal, and every second cell takes the opposite level (25 <-> 100,
+    // 50 <-> 75), so each level meets its extreme next to it, with the sequence running the other way
+    // along the other diagonal. Neighbouring rows and columns always differ, which loads the head
+    // unevenly across and along the feed; for seeing where the scanlines start.
+    val CHECK_LEVELS = intArrayOf(4, 8, 11, 15)
+    fun grayChecker(h: Int, caption: String): ByteArray {
+        val w = Niimbot.COLOR_HEAD
+        val px = ByteArray(w * h)
+        val m = 24; val lm = 64; val cell = 32
+        stamp(px, w, h, lm, m, caption, w, 15)
+        val top = m + 40
+        val cols = (w - lm - m) / cell
+        val rows = (h - top) / cell
+        for (j in 0 until rows) for (i in 0 until cols) {
+            val k = ((i - j) % 4 + 4) % 4
+            val level = CHECK_LEVELS[if ((i + j) % 2 == 0) k else 3 - k]
+            for (y in top + j * cell until top + (j + 1) * cell) for (x in lm + i * cell until lm + (i + 1) * cell)
+                px[y * w + x] = level.toByte()
         }
         return px
     }

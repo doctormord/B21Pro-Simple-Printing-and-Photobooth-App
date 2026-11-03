@@ -17,8 +17,22 @@ class PaperProfile(
     // Value: darkness per chart step, 0 = paper, 1 = the darkest step (gray: levels 0..15; 1-bit: the
     // 25 tones of TestChart.calibration, dithered with that look)
     val curves: MutableMap<String, FloatArray> = mutableMapOf(),
+    // Gray load balance (last, last0; percent of the original, 0 = original) the gray curve was measured
+    // with, same keys as curves. A curve only fits the load it was calibrated with.
+    val load: MutableMap<String, IntArray> = mutableMapOf(),
+    // 1-bit heat (percent of the original, 0 = original) the 1-bit curves were measured with, same keys as curves
+    val heat: MutableMap<String, Int> = mutableMapOf(),
+    // Head temperature (°C) when the chart for that curve was printed; the printer lowers the heating
+    // when the head is warm, so a curve only fits prints that start at about the same temperature
+    val calTemp: MutableMap<String, Int> = mutableMapOf(),
 ) {
     fun curve(mode: String, density: Int) = curves["$mode$density"]
+
+    // Gray only: the density to take the curve from. The exact one when calibrated, else the nearest
+    // calibrated density of this paper (lower one on a tie), else null
+    fun grayDensity(density: Int): Int? =
+        if (curves.containsKey("$GRAY$density")) density
+        else (0..15).filter { curves.containsKey("$GRAY$it") }.minWithOrNull(compareBy({ Math.abs(it - density) }, { it }))
 
     companion object {
         const val GRAY = "gray"
@@ -36,7 +50,10 @@ class PaperProfile(
                 PaperProfile(o.getString("id"), o.getString("name"), o.optString("barcode").ifEmpty { null },
                     c.keys().asSequence().associateWith { k ->
                         val a = c.getJSONArray(k); FloatArray(a.length()) { a.getDouble(it).toFloat() }
-                    }.toMutableMap())
+                    }.toMutableMap(),
+                    (o.optJSONObject("load") ?: JSONObject()).let { h -> h.keys().asSequence().associateWith { k -> h.getJSONArray(k).let { a -> intArrayOf(a.getInt(0), a.getInt(1)) } }.toMutableMap() },
+                    (o.optJSONObject("heat") ?: JSONObject()).let { h -> h.keys().asSequence().associateWith { h.getInt(it) }.toMutableMap() },
+                    (o.optJSONObject("calTemp") ?: JSONObject()).let { h -> h.keys().asSequence().associateWith { h.getInt(it) }.toMutableMap() })
             }
         }
 
@@ -44,6 +61,9 @@ class PaperProfile(
             val arr = JSONArray()
             for (p in list) arr.put(JSONObject().apply {
                 put("id", p.id); put("name", p.name); p.barcode?.let { put("barcode", it) }
+                put("load", JSONObject().apply { for ((k, v) in p.load) put(k, JSONArray().put(v[0]).put(v[1])) })
+                put("heat", JSONObject().apply { for ((k, v) in p.heat) put(k, v) })
+                put("calTemp", JSONObject().apply { for ((k, v) in p.calTemp) put(k, v) })
                 put("curves", JSONObject().apply {
                     for ((k, v) in p.curves) put(k, JSONArray().apply { v.forEach { put(Math.round(it * 1000) / 1000.0) } })
                 })

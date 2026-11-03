@@ -159,9 +159,10 @@ class CropView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     }
 
     private fun moveBy(dx: Float, dy: Float) {
-        val ox = dx.coerceIn(imgRect.left - crop.left, imgRect.right - crop.right)
-        val oy = dy.coerceIn(imgRect.top - crop.top, imgRect.bottom - crop.bottom)
-        crop.offset(ox, oy)
+        // A crop that is a hair larger than the image (rounding) leaves no room: the range would be empty
+        fun room(d: Float, lo: Float, hi: Float) = if (lo > hi) 0f else d.coerceIn(lo, hi)
+        crop.offset(room(dx, imgRect.left - crop.left, imgRect.right - crop.right),
+            room(dy, imgRect.top - crop.top, imgRect.bottom - crop.bottom))
     }
 
     private fun resizeTo(x: Float, y: Float) {

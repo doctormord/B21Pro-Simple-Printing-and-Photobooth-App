@@ -52,6 +52,8 @@ object ImageProcessor {
         val redHi: Float = 1f,
         // From the paper profile, for this density (see PaperProfile.curves); null = built-in default
         val grayCurve: FloatArray? = null,
+        // Gray mode uses only levels 0..grayMaxLevel (7: the tones in between are dithered)
+        val grayMaxLevel: Int = 15,
         val monoCurve: FloatArray? = null,
         // Portrait photos with a depth map: what is nearer than depthCut (0..1 of the photo's depth
         // range) is the subject, the rest the background, treated as `background` says
@@ -81,6 +83,27 @@ object ImageProcessor {
         val rot: Int = 0,
     ) {
         fun withRot(r: Int) = Result(bits, width, height, preview, levels, red, r)
+
+        // The whole print moved by dx/dy mm (right/down), for a roll that sits off; what moves out is
+        // lost, what moves in is paper
+        fun shifted(dxMm: Double, dyMm: Double): Result {
+            val dx = mmToPx(dxMm); val dy = mmToPx(dyMm)
+            if (dx == 0 && dy == 0) return this
+            fun move(a: ByteArray): ByteArray {
+                val out = ByteArray(a.size)
+                for (y in maxOf(0, dy) until minOf(height, height + dy)) {
+                    val x0 = maxOf(0, dx); val x1 = minOf(width, width + dx)
+                    if (x1 > x0) System.arraycopy(a, (y - dy) * width + x0 - dx, out, y * width + x0, x1 - x0)
+                }
+                return out
+            }
+            val k = preview.width.toFloat() / width
+            val bmp = Bitmap.createBitmap(preview.width, preview.height, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            c.drawColor(if (red != null) Color.rgb(250, 232, 212) else Color.WHITE)
+            c.drawBitmap(preview, dx * k, dy * k, null)
+            return Result(move(bits), width, height, bmp, levels?.let { move(it) }, red?.let { move(it) }, rot)
+        }
 
         // Columns x0 until x1 as a result of their own (panorama: one label of the strip)
         fun slice(x0: Int, x1: Int): Result {
@@ -210,7 +233,7 @@ object ImageProcessor {
         val bgGray = if (subject != null && o.background == Background.LOOK) gray.copyOf() else null
         val tone = if (ink == Ink.RED_BLACK) FloatArray(w * h) else null
         prepare(gray, w, h, area, o, fade, ink, tone, subject)
-        var levels = if (ink == Ink.GRAY) toLevels(gray, w, h, o.grayCurve ?: PrintCurve.GRAY) else null
+        var levels = if (ink == Ink.GRAY) toLevels(gray, w, h, o.grayCurve ?: PrintCurve.GRAY, o.grayMaxLevel) else null
         val bits = levels?.let { l -> ByteArray(w * h) { if (l[it] > 0) 1 else 0 } } ?: toBits(gray, w, h, o)
         // Background in another look: the same photo prepared and rasterised again with that look's
         // tone correction, then the two are joined along the depth boundary (blue-noise mixed across
@@ -220,7 +243,7 @@ object ImageProcessor {
         if (bgGray != null && bgOpts != null && subject != null) {
             val bgInk = inkFor(bgOpts)
             prepare(bgGray, w, h, area, bgOpts, fade, bgInk, null, null)
-            val bgLevels = if (bgInk == Ink.GRAY) toLevels(bgGray, w, h, o.grayCurve ?: PrintCurve.GRAY) else null
+            val bgLevels = if (bgInk == Ink.GRAY) toLevels(bgGray, w, h, o.grayCurve ?: PrintCurve.GRAY, o.grayMaxLevel) else null
             val bgBits = bgLevels?.let { l -> ByteArray(w * h) { if (l[it] > 0) 1 else 0 } } ?: toBits(bgGray, w, h, bgOpts)
             val pick = BooleanArray(w * h) { i -> subject[i] * 255f <= Dither.blueThreshold(i % w, i / w) }
             // One of the two in gray: 1-bit dots of the other print at the darkest level
@@ -340,14 +363,14 @@ object ImageProcessor {
     // 16-level error diffusion (Floyd-Steinberg): 0 = white .. 15 = black. dark: how dark each level
     // prints (PaperProfile or PrintCurve.GRAY), null = evenly spaced. Each dot gets the level nearest to its
     // target darkness, so levels that print alike are simply not used.
-    private fun toLevels(gray: FloatArray, w: Int, h: Int, dark: FloatArray?): ByteArray {
+    private fun toLevels(gray: FloatArray, w: Int, h: Int, dark: FloatArray?, maxLevel: Int = 15): ByteArray {
         val d = dark ?: FloatArray(16) { it / 15f }
         val out = ByteArray(w * h)
         for (y in 0 until h) for (x in 0 until w) {
             val i = y * w + x
             val t = 1f - gray[i].coerceIn(0f, 255f) / 255f
             var l = 0
-            for (k in 1 until 16) if (abs(d[k] - t) < abs(d[l] - t)) l = k
+            for (k in 1..maxLevel) if (abs(d[k] - t) < abs(d[l] - t)) l = k
             out[i] = l.toByte()
             val err = 255f * (d[l] - t)
             if (x + 1 < w) gray[i + 1] += err * 7 / 16
@@ -850,12 +873,13 @@ object ImageProcessor {
         when (o.raster) {
             Raster.TEXT -> for (i in gray.indices) bits[i] = if (gray[i] < 128) 1 else 0
             Raster.DOTS -> {
-                // Round dots at 45°, about 0.5 mm screen pitch at 300 dpi
-                val period = 6.0
-                val k = 2 * Math.PI / period / Math.sqrt(2.0)
+                // Round dots at 45°. The screen repeats after 8 dots along both diagonals, so every dot
+                // has the same shape on the dot grid (a non-integer period gave uneven dots and a beat
+                // pattern in print and preview). Sampled at the dot centres.
+                val k = 2 * Math.PI / 8
                 for (y in 0 until h) for (x in 0 until w) {
                     val i = y * w + x
-                    val t = (Math.cos((x + y) * k) + Math.cos((x - y) * k) + 2) / 4
+                    val t = (Math.cos((x + y + 1) * k) + Math.cos((x - y) * k) + 2) / 4
                     bits[i] = if (gray[i] / 255.0 < t) 1 else 0
                 }
             }

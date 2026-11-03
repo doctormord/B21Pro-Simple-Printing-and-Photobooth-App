@@ -4,7 +4,68 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.5.1 (2026-11-03)
+
+### Load and heat bytes, printer profile
+The loadheat firmware replaces the `double` builds: the print start has 11 bytes. The load term of the gray heat
+time (last for levels 1 to 15, last0 for level 0) and the 1-bit heat are set per print in percent of the
+original. The app sends them from the debug console, stores them with each calibration and prints the
+value on the calibration card. The k and motor-phase controls are gone. A printer profile "original /
+patched" (default original) chooses between the 9-byte print start of the manufacturer's app and the 11-byte
+one, with a fall-back to 9 bytes when the 11-byte start gets no answer.
+
+### Calibration on photo-frame labels
+The calibration chart is the size of the photo window and is printed into it, like a photo, instead of
+needing a plain label of another size.
+
+### Dot raster
+The round-dot screen repeated every 8.5 dots along the diagonals, which is not a whole number of dots, so
+the dots differed in shape and a beat pattern showed in print and preview. The screen now repeats after 8.
+
+### Head temperature
+The printer lowers the gray heating when the head is warm (up to about 275 µs less at 56 °C), so a gray
+curve calibrated on a cold head prints paler on a warm one. A gray calibration now stores the head
+temperature of its chart print; a gray print that starts 8 °C or more away from it warns. There is no
+automatic wait for the head to cool.
+
+### Empty battery
+At battery level 0 (7061 mV) the printer did not answer the print start (`Timeout waiting for 0x01`); at
+7072 mV, just above, it still printed. The app now reads the battery before every print and stops with
+a message when the level is 0, instead of waiting for the timeout.
+
+### Gray prints that change look mid-way
+A scan of a gray photo printed twice showed two print regimes with sharp, row-exact borders: zones
+with a fine line pattern (every other dot row weaker, a few dots apart) and zones that print solid,
+darker and without the lines. In one print the first ~155 rows were solid and the rest lined, in the
+other ~40 rows in the middle were solid. The same data went out both times. The line pattern is
+what the 1-bit *fast* speed does too (see *Fine vs. fast*), and the gray print start has always sent
+speed 0 (as the manufacturer's app does). The solid zones would then be stretches where the printer
+ran dry and printed row by row at its slow pace. Not proven: the app has no per-block timing in the
+log yet from a bad print.
+Result: the log showed identical timings for four prints of one photo (the whole job is in the
+printer after 3.5 s, free rows 509/409/309, no timeouts), the speed byte changed neither print time
+nor look, and the prints differed up to 2× in darkness with solid zones at random rows. So not the
+app's delivery. The firmware analysis (separate repo) suggests one row = one motor step; with weak
+torque two rows may land together. The *Gray ladder* test is to separate that from lost heat.
+The ladder at 100 % showed the line pattern on both halves and, in dark sections, a few places where
+two lines merge into one darker, thicker line followed by a wider gap (mostly in the odd-row half):
+paper-step irregularities, not lost heat. Removing the firmware's load term did not remove the lines
+(flat400-1100_load0 test build); they show wherever the mark is only partly dark. Firmware thread
+asked for: a gray option with levels 0–7 only (*Gray: levels 0–7 only*), a selectable ladder level and
+the flashed firmware file name in the print log (the printer reports 3.10 for every build).
+Crop screen: moving the frame crashed the app (`IllegalArgumentException: Cannot coerce value to an
+empty range` in `CropView.moveBy`) when the crop was a rounding hair larger than the image; it now
+does not move in that direction.
+Added: a log line per block of 100 rows (time, free rows, time to send, sync reply) and a debug
+switch *Gray: clarity speed* that sends speed 1 in the gray print start, to see whether the lines
+go away.
+
 ## 1.5.0 (2026-10-30)
+
+### Position offset for all labels
+The x/y fine-tuning only existed for labels with a window. It is now shown for every label; without a
+window the finished print (bits, levels, red, preview) is moved, the part that leaves the label is
+lost and the part that comes in stays white. Not yet in the booth.
 
 ### Calibration reading
 Screenshots of the calibration dialog from the phone showed a moiré on the rectified chart and the

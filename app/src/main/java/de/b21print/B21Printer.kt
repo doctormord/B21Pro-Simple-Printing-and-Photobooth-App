@@ -284,9 +284,37 @@ class B21Printer(
 
     var variant: Variant? = null
 
-    // Print speed, part of the V4 (D110M_V4) print start: 1 = clarity, 0 = speed. The fast speed printed
-    // dots too large for photos and is no longer offered.
-    private val speed = 1
+    // Byte data[7] of the 1-bit print start (V4): 1 = clarity, 0 = what the manufacturer's app sends. Set in
+    // the debug console. The gray print start always sends 1.
+    var startByte: () -> Int = { 1 }
+    // Patched firmware (loadheat): the print start carries 11 bytes (data[8] last, data[9] last0,
+    // data[10] 1-bit heat). Original firmware reads only data[6] and data[7], so there the app sends the
+    // manufacturer's 9 bytes. heat1Bit: percent of the original, 0 = original
+    var patched: () -> Boolean = { false }
+    var heat1Bit: () -> Int = { 0 }
+    // The 11-byte print start got no answer but the 9-byte one did: the printer is not patched
+    var onNotPatched: () -> Unit = {}
+    // Sends a print start: the 11-byte form first when the printer is marked patched, then, if that gets
+    // no answer, the 9-byte form (which also switches the printer profile to original)
+    private suspend fun requestStart(long: IntArray, short: IntArray): Pair<ByteArray, Int> {
+        if (!patched()) return request(Niimbot.PRINT_START, short) to short.size
+        val first = runCatching { request(Niimbot.PRINT_START, long) }
+        first.getOrNull()?.let { return it to long.size }
+        log("No answer to the ${long.size}-byte print start, trying ${short.size} bytes")
+        val r = request(Niimbot.PRINT_START, short)
+        onNotPatched()
+        return r to short.size
+    }
+    // Gray load balance of the loadbyte firmware: data[8] = last (levels 1-15), data[9] = last0 (level 0),
+    // percent of the original, 0 = original
+    var grayLoad: () -> Pair<Int, Int> = { 0 to 0 }
+    // Head temperature read before the last colour print, and a hook for the app to judge it
+    // (temperature, density) -> warning text or null
+    var lastStartTempC: Int? = null
+    var startTempCheck: (Int, Int) -> String? = { _, _ -> null }
+    var notify: (String) -> Unit = {}
+    // Name of the firmware file flashed last through the app (the printer reports 3.10 for every build)
+    var firmwareNote: () -> String = { "" }
     // Log every reply (diagnostics)
     var verbose = false
     var onVariantFound: (Variant) -> Unit = {}
@@ -301,15 +329,20 @@ class B21Printer(
     }
 
     private suspend fun startPage(v: Variant, width: Int, height: Int, copies: Int) {
-        val ps = when (v) {
-            // 9-byte D110M_V4 start: copies, 0,0,0,0, colour mode, speed, flag(0). The manufacturer's app
-            // sends colour mode 2 for 1-bit; on paper that only printed lighter, so it stays 0 (niimbluelib).
-            Variant.V4 -> Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0, speed, 0)
-            Variant.B1 -> Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0)
-            Variant.V1 -> intArrayOf(1)
-        }
-        val r = runCatching { request(Niimbot.PRINT_START, ps) }.getOrElse { throw StartFailed(it.message ?: "") }
-        log("Print start ${v.label} → ${hex(r)}")
+        val d7 = startByte().coerceIn(0, 1)
+        val (r, n) = try {
+            when (v) {
+                // D110M_V4 start: copies, 0,0,0,0, colour mode, data[7], then the original's flag 0, or on patched
+                // firmware last, last0 (both 0 in 1-bit) and the 1-bit heat. The manufacturer's app sends colour
+                // mode 2 for 1-bit; on paper that only printed lighter, so it stays 0 (niimbluelib).
+                Variant.V4 -> requestStart(
+                    Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0, d7, 0, 0, heat1Bit().coerceIn(0, 255)),
+                    Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0, d7, 0))
+                Variant.B1 -> request(Niimbot.PRINT_START, Niimbot.u16(copies) + intArrayOf(0, 0, 0, 0, 0)).let { it to 7 }
+                Variant.V1 -> request(Niimbot.PRINT_START, intArrayOf(1)).let { it to 1 }
+            }
+        } catch (e: Exception) { throw StartFailed(e.message ?: "") }
+        log("Print start ${v.label}" + (if (v == Variant.V4) ", $n bytes, data[7]=$d7" + (if (n > 9) ", heat=${heat1Bit()}" else "") else "") + " → ${hex(r)}")
         if (r.isNotEmpty() && r[0].toInt() == 0) throw StartFailed("Print start rejected (${hex(r)})")
         if (v == Variant.V4) {
             // V4: query status, then a 13-byte page size with copy count, no PageStart
@@ -345,6 +378,7 @@ class B21Printer(
         val w = maxOf(width, Niimbot.PRINTHEAD_PIXELS)
 
         warmUp()   // the first packet after a pause is often lost
+        readBattery()?.let { requireCharge(it) }
         // Density with one retry in case the first command is swallowed
         val d = runCatching { request(Niimbot.SET_DENSITY, intArrayOf(density)) }
             .getOrElse { request(Niimbot.SET_DENSITY, intArrayOf(density)) }
@@ -403,12 +437,18 @@ class B21Printer(
         }
         if (!ok) log("Page end not confirmed")
 
-        // Wait until all copies are printed
+        // Wait until all copies are printed. The copy counter has been seen not to rise on some jobs
+        // (the wait then runs its full minute), so the polls are logged to see which.
+        var polls = 0; var last: ByteArray? = null
+        val w0 = System.currentTimeMillis()
         for (t in 0 until 120) {
+            polls = t + 1
             val s = runCatching { request(Niimbot.PRINT_STATUS, intArrayOf(1)) }.getOrNull()
+            last = s
             if (s != null && s.size >= 2 && (((s[0].toInt() and 0xFF) shl 8) or (s[1].toInt() and 0xFF)) >= copies) break
             delay(500)
         }
+        log("Waited for the printer: $polls polls, ${System.currentTimeMillis() - w0} ms, last status ${last?.let { hex(it) } ?: "none"}")
         // V4 sends a heartbeat before the end
         if (heartbeat) oneWay(Niimbot.HEARTBEAT, intArrayOf(1))
         runCatching { request(Niimbot.PRINT_END, intArrayOf(1)) }
@@ -466,40 +506,92 @@ class B21Printer(
         color: Int, rows: List<Niimbot.Row>, height: Int, density: Int, labelType: Int, onProgress: (Float) -> Unit,
     ) {
         warmUp()
+        logBattery("before")?.let {
+            requireCharge(it)
+            lastStartTempC = it.tempC
+            if (color == Niimbot.PAGE_COLOR_GRAY) startTempCheck(it.tempC, density)?.let { m -> log("Warning: $m"); notify(m) }
+        }
+        // Which paper the printer thinks it has: the same job prints differently on different rolls
+        readRoll()?.let { log("Roll tag: barcode ${it.barcode}, serial ${it.serial}, ${it.used} of ${it.total} used, paper type ${it.type}") }
+            ?: log("Roll tag: none")
+        log("Firmware file flashed last: ${firmwareNote().ifEmpty { "unknown" }}")
+        log("Label type sent: $labelType, density $density, ${rows.size} row commands for $height rows")
         runCatching { request(Niimbot.SET_DENSITY, intArrayOf(density)) }
             .getOrElse { request(Niimbot.SET_DENSITY, intArrayOf(density)) }
         request(Niimbot.SET_LABEL_TYPE, intArrayOf(labelType))
-        val r = request(Niimbot.PRINT_START, Niimbot.u16(1) + intArrayOf(0, 0, 0, 0, color, 0, 0))
-        log("Print start colour $color → ${hex(r)}")
+        val colourSpeed = if (color == Niimbot.PAGE_COLOR_GRAY) 1 else 0
+        val gray = color == Niimbot.PAGE_COLOR_GRAY
+        val (last, last0) = if (gray) grayLoad().let { it.first.coerceIn(0, 255) to it.second.coerceIn(0, 255) } else 0 to 0
+        // Gray on patched firmware: 11 bytes, 00 01 00 00 00 00 03 01 <last> <last0> 00; the original's form
+        // is the 9 bytes 00 01 00 00 00 00 03 01 00. The other colour modes always send 9 bytes.
+        val (r, n) = if (gray) requestStart(
+            Niimbot.u16(1) + intArrayOf(0, 0, 0, 0, color, colourSpeed, last, last0, 0),
+            Niimbot.u16(1) + intArrayOf(0, 0, 0, 0, color, colourSpeed, 0))
+        else request(Niimbot.PRINT_START, Niimbot.u16(1) + intArrayOf(0, 0, 0, 0, color, colourSpeed, 0)) to 9
+        log("Print start colour $color, $n bytes, data[7]=$colourSpeed" + (if (gray && n > 9) ", last=$last, last0=$last0" else "") + ", printer reply ${hex(r)}")
         if (r.isNotEmpty() && r[0].toInt() == 0) throw Exception("Printer rejected colour mode $color (${hex(r)})")
         oneWay(Niimbot.PRINT_STATUS, intArrayOf(1))
         val width = if (color == Niimbot.PAGE_COLOR_GRAY) Niimbot.COLOR_HEAD - 1 else Niimbot.COLOR_HEAD
         request(Niimbot.SET_PAGE_SIZE, Niimbot.u16(height) + Niimbot.u16(width) + Niimbot.u16(1) + IntArray(7))
 
+        // Timing per block (ms since the first row: waiting for room, free rows, sending, sync reply), to
+        // see whether the printer ran dry; a print that changes look mid-way points there
+        val t0 = System.currentTimeMillis()
+        var tBlock = t0; var free = -1; var waited = 0L
         rows.forEachIndexed { i, row ->
-            if (i % BLOCK == 0) waitForRoom(BLOCK)
+            if (i % BLOCK == 0) {
+                val w0 = System.currentTimeMillis()
+                free = waitForRoom(BLOCK)
+                tBlock = System.currentTimeMillis(); waited = tBlock - w0
+            }
             write(row.bytes)
             if (i % BLOCK == BLOCK - 1 && color == Niimbot.PAGE_COLOR_GRAY) {
+                val s0 = System.currentTimeMillis()
                 runCatching { request(Niimbot.PRINT_SYNC, Niimbot.u16(row.last) + 1, 15000) }
                     .onFailure { log("No sync reply at row ${row.last}") }
+                val now = System.currentTimeMillis()
+                log("Block to row ${row.last}: t=${s0 - t0} ms, waited $waited ms, free $free, sent ${s0 - tBlock} ms, sync ${now - s0} ms")
             } else if (i % 8 == 7) delay(10)
             onProgress((i + 1f) / rows.size)
         }
         finishJob(1, heartbeat = true)
+        logBattery("after")
+    }
+
+    // Supply voltage and head temperature around a colour print: identical jobs printed up to twice as
+    // dark, so what the printer reports about its supply is worth having next to the block timings
+    // At battery level 0 the printer does not answer the print start (seen at 7061 mV; a test at 7072 mV
+    // still printed), so say so up front instead of waiting for a timeout
+    private fun requireCharge(b: Niimbot.Battery) {
+        if (b.level == 0) {
+            log("Battery level 0 (raw ${b.raw}): the printer refuses print jobs")
+            throw Exception("Printer battery is empty (level 0, ${b.raw} mV). Charge it or connect power, then print again.")
+        }
+    }
+
+    private suspend fun logBattery(tag: String): Niimbot.Battery? {
+        // Right after a job the printer often does not answer yet
+        var b = readBattery()
+        if (b == null) { delay(1500); b = readBattery() }
+        log(b?.let { "Battery $tag print: raw ${it.raw}, level ${it.level}, temp ${it.tempC} °C [${hex(it.bytes)}]" } ?: "Battery $tag print: no reply")
+        return b
     }
 
     private val BLOCK = 100
 
-    private suspend fun waitForRoom(rows: Int) {
+    // Returns the free rows seen last (-1 when the printer does not tell)
+    private suspend fun waitForRoom(rows: Int): Int {
         val until = System.currentTimeMillis() + 60000
+        var free = -1
         while (System.currentTimeMillis() < until) {
             val s = runCatching { request(Niimbot.PRINT_STATUS, intArrayOf(1), 1000) }.getOrNull()
-            if (s == null || s.size < 6) return     // firmware without the field: carry on
-            val free = ((s[4].toInt() and 0xFF) shl 8) or (s[5].toInt() and 0xFF)
-            if (free >= rows) return
+            if (s == null || s.size < 6) return -1     // firmware without the field: carry on
+            free = ((s[4].toInt() and 0xFF) shl 8) or (s[5].toInt() and 0xFF)
+            if (free >= rows) return free
             delay(150)
         }
         log("Printer buffer stayed full, sending anyway")
+        return free
     }
 
     // Battery state from the heartbeat; null when the printer does not answer

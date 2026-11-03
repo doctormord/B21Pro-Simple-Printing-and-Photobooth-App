@@ -45,6 +45,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
   compensation for the space between stuck-on labels
 - Labels with a pre-printed frame, NB835 *Memory Film* (54 × 67 mm) and NB838 *Photo frame*
   (54 × 84 mm): only the window is printed, with a per-label offset that is remembered
+- *Fine-tune position* (±3 mm, left/right and up/down, remembered per label) exists for every label:
+  on labels without a window it moves the whole print, round labels included, for a roll that sits off
 - Round labels and Memory Film print 0.6 mm past the edge so a slightly shifted roll leaves no
   white gap; on round labels *Overscan* raises this to 2 mm
 
@@ -221,7 +223,8 @@ How many of the 16 levels show depends on the printer firmware, not on the app:
 - **Patched firmware** (released separately, not part of the app): spreads the heat of the 16 levels
   over the range the paper actually reacts to and compensates rows with many dots properly. On a
   third-party 40 × 40 mm roll about ten levels then print as distinct tones, the same tone prints
-  alike in a small detail and a large area, and photos keep their mid tones.
+  alike in a small detail and a large area, and photos keep their mid tones. The app sets the load
+  balance of the gray rows per print (see *Printer firmware*).
 
 After changing the firmware, calibrate the paper profile again: the levels print differently.
 
@@ -329,6 +332,38 @@ uses the measured table in place of the built-in one, and the preview follows bo
 crush the darkest tones, so the shadow end is less reliable than the rest. Red/black rolls cannot be
 calibrated yet.
 
+## Printer firmware
+
+The app prints everything it offers on the printer's original firmware: 1-bit, gray, red/black, the
+photo booth, calibration and the test prints. A patched firmware (released separately, not part of the
+app) does the same things at another level: it moves the range the printer works in and lets the app
+set it per print. Paper profiles are made for one firmware; calibrate again after changing it.
+
+| | Original firmware | Patched firmware (loadheat build) |
+|---|---|---|
+| Print start | 9 bytes, as the manufacturer's app sends it | 11 bytes: gray load `last` and `last0`, 1-bit heat |
+| Rolls without a valid NIIMBOT tag | print very faint, the firmware lowers the heat | print normally |
+| Gray levels | about 6 distinct tones on the rolls tried | about 10 on a third-party 40 × 40 mm roll, from a fixed linear curve |
+| Gray load balance (rows with many dots) | fixed, makes up too little | set per print in percent (`last` for levels 1 to 15, `last0` for level 0) |
+| 1-bit heat | density 1 to 5 only | density plus a heat in percent of the original |
+
+Debug console settings for it:
+- **Printer firmware: original / patched** (default original). Original gets the 9-byte print start. On
+  patched, the 11-byte start goes out; if the printer does not answer it but answers the 9-byte one, the
+  app sets the profile back to original.
+- **Gray load**: presets Original, load50 (25 / 50), load150 (150 / 100), load200 (200 / 100), or both
+  values. 0 means the original value, 1 to 255 are percent.
+- **1-bit heat**: percent of the original, 0 = original; 30 to 150 is the useful range, above about 140 the
+  print gets slower.
+- **1-bit print start byte data[7]**: 0 or 1 (default 1); 0 is what the manufacturer's app sends.
+
+A calibration stores the load (gray) or heat (1-bit) and the head temperature it was made at, and
+selecting the paper profile sets the load or heat again. Printing with another value, or with a head more
+than 8 °C away from the calibration temperature, warns that the tones will be off. The calibration card
+carries the setting (`CAL 16B D3 L25/50`, `CAL AMIGA F D1 H70`).
+
+The patched firmware is not tested on the original's other versions; the original firmware is tested at 3.10.
+
 ## Requirements
 
 - Android 9 or newer with Bluetooth LE, on an arm64 device (the segmentation model's native library
@@ -428,12 +463,23 @@ the BLE characteristic and shows every reply. It also offers:
   default), for both print modes. Remembered.
 - **Tone sweep**: prints the current photo in four vertical stripes with different tone targets
   around the current gamma (−0.3, ±0, +0.3, +0.6, labelled at the top), to choose from one print.
-- **Gray wedge**: prints 16 flat gray levels, a smooth ramp diffused to 16 levels and the same
+- **Printer firmware, gray load, 1-bit heat, 1-bit data[7]**: the print start of the patched firmware and the
+  printer profile; see *Printer firmware*.
+- **Gray curve of another density**: a gray print at a density without its own calibration uses the nearest
+  calibrated density of the same paper profile (the lower one on a tie) instead of the default curve. The
+  print log says which density the curve came from. Calibrate that density to get its own curve.
+- **Gray: linear, level = tone**: debug switch that ignores the paper profile and the default curve and maps
+  the photo tone straight to the 16 levels (level = tone x 15), to see what a firmware's own level table
+  prints. Logged as "linear (level = tone)".
+- **Wedge**: prints 16 flat gray levels, a smooth ramp diffused to 16 levels and the same
   ramp in black and white only, straight to the printer.
-- **Gray load test**: a light, a mid and a dark gray level, each as a patch alone, with the same
+- **Load test**: a light, a mid and a dark gray level, each as a patch alone, with the same
   level running on over half the width and over the whole width. If the printer compensates rows
   with many dots correctly, the three patches of a level look alike; on the original firmware the
   ones next to the long bands print lighter. For comparing printer firmware.
+- **Checker**: checkerboard of flat gray cells in 25 / 50 / 75 / 100 %, the level running
+  along one diagonal and every second cell taking the opposite level, so every level meets an
+  extreme next to it. For finding at which loads and levels the scanlines appear.
 - **Red/black test**: black ramp, red ramp, both side by side, 8-dot stripes and a 1-dot
   checkerboard in red and black.
 - **Save bitmap** / **Print bitmap file**: the dots of the current print as a PNG (1:1, gray

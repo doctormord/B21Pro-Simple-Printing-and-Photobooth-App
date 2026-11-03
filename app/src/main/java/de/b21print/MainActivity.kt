@@ -501,7 +501,7 @@ class MainActivity : AppCompatActivity() {
         show(R.id.textColorBox, !photo && switchRed.isChecked && (!qr || toggleFrame.checkedButtonId != R.id.frame0))
         show(R.id.btnTextColor, !qr)
         show(R.id.btnFrameColor, toggleFrame.checkedButtonId != R.id.frame0)
-        show(R.id.windowTuning, win)
+        show(R.id.windowTuning, true)
         show(R.id.switchInstant, photo && !win && !selectedLabel.round)
         show(R.id.btnOrient, !win && !selectedLabel.round && physSizeMm().let { it.first != it.second })
         show(R.id.switchSoftEdge, photo)
@@ -589,12 +589,11 @@ class MainActivity : AppCompatActivity() {
             suppressEdits = false
             switchInstant.isChecked = preset.instant
         }
-        preset.window?.let { win ->
-            findViewById<TextView>(R.id.txtWindowInfo).text =
-                getString(R.string.window_info, preset.code, fmt(win.w), fmt(win.h))
-            sliderOffsetX.value = prefs.getFloat("offX_${preset.code}", 0f)
-            sliderOffsetY.value = prefs.getFloat("offY_${preset.code}", 0f)
-        }
+        val info = findViewById<TextView>(R.id.txtWindowInfo)
+        preset.window?.let { win -> info.text = getString(R.string.window_info, preset.code, fmt(win.w), fmt(win.h)) }
+        info.visibility = if (preset.window != null) View.VISIBLE else View.GONE
+        sliderOffsetX.value = prefs.getFloat("offX_${preset.code}", 0f)
+        sliderOffsetY.value = prefs.getFloat("offY_${preset.code}", 0f)
         applyModeVisibility()
         scheduleRender()
         // Scroll the selected label into view
@@ -891,7 +890,7 @@ class MainActivity : AppCompatActivity() {
                 val style = currentTextStyle()
                 val twoColour = switchRed.isChecked
                 r = withContext(Dispatchers.Default) {
-                    ImageProcessor.renderText(style, wmm, hmm, label.window, label.frameColor, label.round, capPx(), twoColour).withRot(orient())
+                    ImageProcessor.renderText(style, wmm, hmm, label.window, label.frameColor, label.round, capPx(), twoColour).moved(label).withRot(orient())
                 }
                 rendered = if (style.text.isNotBlank()) r else null
             } else {
@@ -902,7 +901,7 @@ class MainActivity : AppCompatActivity() {
                 r = withContext(Dispatchers.Default) {
                     if (sweep) ImageProcessor.renderSweep(src, wmm, hmm, label.window, label.frameColor, opts, label.round,
                         sweepGammas().map { "%.1f".format(Locale.ROOT, it) to opts.copy(toneGamma = it) })
-                    else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round, dep, capPx()).withRot(orient())
+                    else ImageProcessor.render(src, wmm, hmm, label.window, label.frameColor, opts, label.round, dep, capPx()).moved(label).withRot(orient())
                 }
                 rendered = if (src != null) r else null
             }
@@ -951,7 +950,9 @@ class MainActivity : AppCompatActivity() {
             },
             redLo = sliderRed.values[0] / 100f,
             redHi = sliderRed.values[1] / 100f,
-            grayCurve = profile?.curve(PaperProfile.GRAY, sliderDensity.value.toInt()),
+            grayCurve = if (prefs.getBoolean("grayLinear", false)) FloatArray(16) { it / 15f }
+                else profile?.let { pr -> pr.grayDensity(sliderDensity.value.toInt())?.let { d -> pr.curve(PaperProfile.GRAY, d) } },
+            grayMaxLevel = if (prefs.getBoolean("grayMax7", false)) 7 else 15,
             monoCurve = monoCurve(),
             depthCut = 1f - sliderDepthCut.value / 100f,
             background = background(),
@@ -966,6 +967,10 @@ class MainActivity : AppCompatActivity() {
             offsetYMm = if (label.window != null) sliderOffsetY.value.toDouble() else 0.0,
         )
     }
+
+    // Labels without a window: the fine-tuning moves the whole print (windows move their window)
+    private fun ImageProcessor.Result.moved(label: LabelPreset) =
+        if (label.window != null) this else shifted(sliderOffsetX.value.toDouble(), sliderOffsetY.value.toDouble())
 
     // The label as it sticks on the printer: width across the head, height in the feed direction
     private fun physSizeMm(): Pair<Double, Double> {
@@ -1133,7 +1138,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun batteryText(b: Niimbot.Battery) =
-        getString(R.string.battery, "L${b.level}" + (b.volts?.let { " · %.2f V".format(Locale.ROOT, it) } ?: " · ${b.raw}"))
+        getString(R.string.battery, "L${b.level}" + (b.volts?.let { " · %.2f V".format(Locale.ROOT, it) } ?: " · ${b.raw}") + " · ${b.tempC} °C")
 
     private fun showBattery() {
         val b = battery
@@ -1234,6 +1239,22 @@ class MainActivity : AppCompatActivity() {
         }
         // Remember the protocol variant that worked
         p.variant = prefs.getString("variant", null)?.let { n -> B21Printer.Variant.entries.firstOrNull { it.name == n } }
+        p.startByte = { startByte() }
+        p.patched = { firmwarePatched() }
+        p.heat1Bit = { heat1() }
+        p.onNotPatched = {
+            prefs.edit().putBoolean("fwPatched", false).apply()
+            log("The printer answers only the 9-byte print start: printer profile set to original firmware")
+            runOnUiThread { toast("Printer profile set to original firmware") }
+        }
+        p.grayLoad = { grayLast() to grayLast0() }
+        p.notify = { m -> runOnUiThread { toast(m) } }
+        p.startTempCheck = { t, density ->
+            val calT = profile?.grayDensity(density)?.let { profile?.calTemp?.get(PaperProfile.GRAY + it) }
+            if (prefs.getBoolean("grayLinear", false) || profile?.grayDensity(density) == null || calT == null || Math.abs(t - calT) < 8) null
+            else "Head is $t °C, the gray calibration was made at $calT °C: tones will be off"
+        }
+        p.firmwareNote = { prefs.getString("fwName", "")?.let { n -> if (n.isEmpty()) "" else "$n (${java.text.SimpleDateFormat("MM-dd HH:mm", Locale.ROOT).format(prefs.getLong("fwTime", 0))})" } ?: "" }
         p.onVariantFound = { v -> prefs.edit().putString("variant", v.name).apply() }
         scope.launch {
             updatePrinterChip(connecting = true)
@@ -1331,9 +1352,29 @@ class MainActivity : AppCompatActivity() {
         printJob {
             val mode = when {
                 twoColor -> "red/black"
-                r.levels != null -> "16 grays"
+                r.levels != null -> "16 grays" + (if (prefs.getBoolean("grayMax7", false)) " (levels 0–7)" else "") +
+                    (if (prefs.getBoolean("grayLinear", false)) ", linear (level = tone)"
+                        else if (profile?.grayDensity(density) != null) ", paper profile" + (profile?.grayDensity(density)?.takeIf { it != density }?.let { " (curve of density $it, not calibrated for $density)" } ?: "")
+                        else ", default curve")
                 else -> "1-bit"
             }
+            if (r.levels != null) {
+                val cal = profile?.grayDensity(density)?.let { profile?.load?.get(PaperProfile.GRAY + it) }
+                if (cal != null && (cal[0] != grayLast() || cal[1] != grayLast0())) {
+                    val msg = "Calibration was made with load ${cal[0]}/${cal[1]}, printing with ${grayLast()}/${grayLast0()}: tones will be off"
+                    log("Warning: $msg"); toast(msg)
+                }
+                log("Gray load last=${grayLast()} last0=${grayLast0()}")
+            } else if (!twoColor && firmwarePatched()) {
+                val m = calMode()
+                val calH = m?.let { profile?.heat?.get(m + density) }
+                if (m != null && profile?.curve(m, density) != null && calH != null && calH != heat1()) {
+                    val msg = "Calibration was made with 1-bit heat $calH %, printing with ${heat1()} %: tones will be off"
+                    log("Warning: $msg"); toast(msg)
+                }
+                log("1-bit heat ${heat1()} %")
+            }
+            log("Firmware profile: ${if (firmwarePatched()) "patched" else "original"}, paper profile: ${profile?.name ?: "none"}")
             log("Printing ${r.width}×${r.height} px, $mode, density $density, speed pref ${prefs.getInt("speed", 1)}, roll ${roll?.barcode ?: "none"} …")
             val parts = panoSlices(r)
             printParts(p, parts, twoColor, density, labelType, copies, it)
@@ -1392,6 +1433,21 @@ class MainActivity : AppCompatActivity() {
 
     // The list of recent prints; a tap offers to print the same dots again
     private fun keepHistory() = prefs.getBoolean("keepHistory", true)
+
+    // Value of data[7] in the gray print start; an old clarity switch counts as 1
+    // data[7] of the 1-bit print start (0 or 1, default 1). The gray print start sends 1 and the load
+    // balance of the loadbyte firmware: last = levels 1-15, last0 = level 0, percent of the original (0 = original)
+    private fun startByte() = prefs.getInt("grayD7", 1).coerceIn(0, 1)
+    // Printer profile: patched firmware (loadheat) takes the 11-byte print start, original firmware the 9-byte one
+    private fun firmwarePatched() = prefs.getBoolean("fwPatched", false)
+    // 1-bit heat of the loadheat firmware, percent of the original (0 = original)
+    private fun heat1() = prefs.getInt("heat1", 0).coerceIn(0, 255)
+    private fun grayLast() = prefs.getInt("grayLast", 0).coerceIn(0, 255)
+    private fun grayLast0() = prefs.getInt("grayLast0", 0).coerceIn(0, 255)
+    private val LOAD_PRESETS = listOf(
+        Triple("Original", 0, 0), Triple("load50 (last 25, last0 50)", 25, 50),
+        Triple("load150 (last 150, last0 100)", 150, 100), Triple("load200 (last 200, last0 100)", 200, 100),
+    )
 
     private fun showPrints() {
         val dialog = BottomSheetDialog(this)
@@ -1558,6 +1614,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun chooseLadderLevel() {
+        val items = arrayOf("15 and 7 (default)", "11", "10", "9", "8", "6", "5")
+        val levels = arrayOf(15 to 7, 11 to 11, 10 to 10, 9 to 9, 8 to 8, 6 to 6, 5 to 5)
+        MaterialAlertDialogBuilder(this).setTitle("Gray ladder: level")
+            .setItems(items) { _, i -> printGrayLadder(levels[i].first, levels[i].second) }.show()
+    }
+
+    private fun printGrayLadder(a: Int = 15, b: Int = 7) {
+        val p = printer ?: return
+        val h = ImageProcessor.mmToPx(physSizeMm().second)
+        val density = sliderDensity.value.toInt()
+        val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
+        printJob { onProgress ->
+            log("Gray ladder ${Niimbot.COLOR_HEAD}×$h, density $density, left even rows / right odd rows, levels $a / $b …")
+            val px = withContext(Dispatchers.Default) { TestChart.grayLadder(h, "LADDER D$density L$a${if (b != a) "/$b" else ""}", a, b) }
+            p.printGray(px, h, density, labelType, onProgress)
+        }
+    }
+
+    private fun printGrayChecker() {
+        val p = printer ?: return
+        val h = ImageProcessor.mmToPx(physSizeMm().second)
+        val density = sliderDensity.value.toInt()
+        val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
+        printJob { onProgress ->
+            log("Gray checker ${Niimbot.COLOR_HEAD}×$h, density $density, levels ${TestChart.CHECK_LEVELS.joinToString(" / ")} …")
+            val px = withContext(Dispatchers.Default) { TestChart.grayChecker(h, "CHECK D$density") }
+            p.printGray(px, h, density, labelType, onProgress)
+        }
+    }
+
     // Hidden debug console: test chart, printer diagnostics, firmware flasher, and raw text commands
     // to the BLE characteristic with every reply. App log lines are mirrored into its log.
     private fun showDebugConsole() {
@@ -1680,8 +1767,12 @@ class MainActivity : AppCompatActivity() {
                 scheduleRender()
             })
             addView(row(
-                button("Gray wedge", p != null) { dialog?.dismiss(); printColorTest(gray = true) },
-                button("Gray load test", p != null) { dialog?.dismiss(); printGrayLoad() },
+                button("Wedge", p != null) { dialog?.dismiss(); printColorTest(gray = true) },
+                button("Load test", p != null) { dialog?.dismiss(); printGrayLoad() },
+            ))
+            addView(row(
+                button("Ladder", p != null) { dialog?.dismiss(); chooseLadderLevel() },
+                button("Checker", p != null) { dialog?.dismiss(); printGrayChecker() },
             ))
             addView(row(
                 button("Red/black test", p != null) { dialog?.dismiss(); printColorTest(gray = false) },
@@ -1721,6 +1812,89 @@ class MainActivity : AppCompatActivity() {
                         prefs.edit().putBoolean("keepHistory", on).apply()
                         toast(if (on) "History is saved" else "History is no longer saved; delete the old one in the list")
                     }
+                })
+            })
+            // Byte data[7] of the 1-bit print start (0 = what the manufacturer's app sends, 1 = default); tap to change
+            lateinit var startByteButton: com.google.android.material.button.MaterialButton
+            startByteButton = button("1-bit print start byte data[7]: ${startByte()}") {
+                val next = 1 - startByte()
+                prefs.edit().putInt("grayD7", next).apply()
+                startByteButton.text = "1-bit print start byte data[7]: $next"
+            }
+            addView(startByteButton)
+            // Load balance (loadbyte firmware): last for levels 1-15, last0 for level 0, percent of the original
+            lateinit var loadButton: com.google.android.material.button.MaterialButton
+            fun loadText() = "Gray load: last ${grayLast()} · last0 ${grayLast0()}"
+            loadButton = button(loadText()) {
+                MaterialAlertDialogBuilder(this@MainActivity).setTitle("Gray load (percent, 0 = original)")
+                    .setItems((LOAD_PRESETS.map { it.first } + "Enter values …").toTypedArray()) { _, i ->
+                        if (i < LOAD_PRESETS.size) {
+                            prefs.edit().putInt("grayLast", LOAD_PRESETS[i].second).putInt("grayLast0", LOAD_PRESETS[i].third).apply()
+                            loadButton.text = loadText()
+                        } else {
+                            fun field(v: Int) = android.widget.EditText(this@MainActivity).apply {
+                                inputType = android.text.InputType.TYPE_CLASS_NUMBER; setText(v.toString()); setSelection(text.length)
+                            }
+                            val f1 = field(grayLast()); val f2 = field(grayLast0())
+                            val box = LinearLayout(this@MainActivity).apply {
+                                orientation = LinearLayout.VERTICAL; setPadding(dp(24f).toInt(), dp(8f).toInt(), dp(24f).toInt(), 0)
+                                addView(TextView(this@MainActivity).apply { text = "last (levels 1–15, 1–255)" }); addView(f1)
+                                addView(TextView(this@MainActivity).apply { text = "last0 (level 0, 1–255)" }); addView(f2)
+                            }
+                            MaterialAlertDialogBuilder(this@MainActivity).setTitle("Gray load").setView(box)
+                                .setPositiveButton("OK") { _, _ ->
+                                    prefs.edit().putInt("grayLast", (f1.text.toString().toIntOrNull() ?: 0).coerceIn(0, 255))
+                                        .putInt("grayLast0", (f2.text.toString().toIntOrNull() ?: 0).coerceIn(0, 255)).apply()
+                                    loadButton.text = loadText()
+                                }.setNegativeButton("Cancel", null).show()
+                        }
+                    }.show()
+            }
+            addView(loadButton)
+            // 1-bit heat (loadheat firmware): percent of the original, 0 = original
+            lateinit var heatButton: com.google.android.material.button.MaterialButton
+            heatButton = button("1-bit heat: ${heat1()} %") {
+                val f = android.widget.EditText(this@MainActivity).apply {
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER; setText(heat1().toString()); setSelection(text.length)
+                }
+                val box = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(dp(24f).toInt(), dp(8f).toInt(), dp(24f).toInt(), 0)
+                    addView(TextView(this@MainActivity).apply { text = "Percent of the original, 0 = original (30–150 useful; above about 140 the print gets slower)" })
+                    addView(f)
+                }
+                MaterialAlertDialogBuilder(this@MainActivity).setTitle("1-bit heat").setView(box)
+                    .setPositiveButton("OK") { _, _ ->
+                        prefs.edit().putInt("heat1", (f.text.toString().toIntOrNull() ?: 0).coerceIn(0, 255)).apply()
+                        heatButton.text = "1-bit heat: ${heat1()} %"
+                    }.setNegativeButton("Cancel", null).show()
+            }
+            addView(heatButton)
+            // Printer profile: the patched firmware takes an 11-byte print start, the original a 9-byte one
+            lateinit var fwButton: com.google.android.material.button.MaterialButton
+            fun fwText() = "Printer firmware: " + if (firmwarePatched()) "patched (11-byte print start)" else "original (9-byte print start)"
+            fwButton = button(fwText()) {
+                val on = !firmwarePatched()
+                prefs.edit().putBoolean("fwPatched", on).apply()
+                fwButton.text = fwText()
+                if (!on) toast("Original firmware: gray profiles from patched firmware do not fit, and rolls without a tag do not print")
+            }
+            addView(fwButton)
+            addView(LinearLayout(this@MainActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(this@MainActivity).apply { text = "Gray: levels 0–7 only, dither between" },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(com.google.android.material.materialswitch.MaterialSwitch(this@MainActivity).apply {
+                    isChecked = prefs.getBoolean("grayMax7", false)
+                    setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("grayMax7", on).apply(); scheduleRender() }
+                })
+            })
+            addView(LinearLayout(this@MainActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(this@MainActivity).apply { text = "Gray: linear, level = tone (ignores the curve)" },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(com.google.android.material.materialswitch.MaterialSwitch(this@MainActivity).apply {
+                    isChecked = prefs.getBoolean("grayLinear", false)
+                    setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("grayLinear", on).apply(); scheduleRender() }
                 })
             })
             addView(button("⚠ Flash firmware …", p != null) { pickFirmware() }.apply {
@@ -1987,6 +2161,14 @@ class MainActivity : AppCompatActivity() {
     private fun selectProfile(p: PaperProfile?) {
         profile = p
         prefs.edit().putString("profile", p?.id).apply()
+        p?.let { pr -> pr.grayDensity(sliderDensity.value.toInt())?.let { d -> pr.load[PaperProfile.GRAY + d] }?.let { l ->
+            prefs.edit().putInt("grayLast", l[0]).putInt("grayLast0", l[1]).apply()
+            log("Gray load set to last ${l[0]} / last0 ${l[1]} from the profile")
+        } }
+        p?.let { pr -> calMode()?.takeIf { it != PaperProfile.GRAY }?.let { m -> pr.heat[m + sliderDensity.value.toInt()] }?.let { h ->
+            prefs.edit().putInt("heat1", h).apply()
+            log("1-bit heat set to $h % from the profile")
+        } }
         showProfile()
         scheduleRender()
     }
@@ -2076,9 +2258,13 @@ class MainActivity : AppCompatActivity() {
         val w = minOf(ImageProcessor.mmToPx(wmm), if (gray) Niimbot.COLOR_HEAD else Niimbot.PRINTHEAD_PIXELS)
         val h = ImageProcessor.mmToPx(hmm)
         // Patches of at least 2 mm (gray bands 0.7 mm high), so the photo has enough of each to measure
-        val chart = TestChart.calChart(w, h, gray)
+        // On a photo-frame label the chart is the size of the window and sits in it, like a photo
+        val win = l.window
+        val cw = if (win != null) ImageProcessor.mmToPx(win.w) else w
+        val ch = if (win != null) ImageProcessor.mmToPx(win.h) else h
+        val chart = TestChart.calChart(cw, ch, gray)
         val small = chart.patches[0].let { minOf(it.w, it.h) < if (gray) 8 else 24 }
-        if (l.round || l.window != null || small) return toast(getString(R.string.cal_plain_label))
+        if (l.round || small) return toast(getString(R.string.cal_plain_label))
         val key = mode + density
         val pad = dp(24f).toInt()
         val gap = dp(8f).toInt()
@@ -2110,7 +2296,7 @@ class MainActivity : AppCompatActivity() {
                 setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
             })
             addView(TextView(this@MainActivity).apply { setText(R.string.cal_steps); setPadding(0, gap, 0, gap) })
-            addView(button(R.string.cal_print) { printCalibration(mode, w, h, density) }.apply { isEnabled = printer != null })
+            addView(button(R.string.cal_print) { printCalibration(mode, w, h, cw, ch, density) }.apply { isEnabled = printer != null })
             addView(LinearLayout(this@MainActivity).apply {
                 addView(button(R.string.cal_photo) { takePhoto("chart.jpg", REQ_CAL_CAMERA) }.apply { setIconResource(R.drawable.ic_camera) },
                     LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -2153,6 +2339,10 @@ class MainActivity : AppCompatActivity() {
             val p = profiles.firstOrNull { it.name == nm }
                 ?: PaperProfile(java.util.UUID.randomUUID().toString(), nm).also { profiles += it }
             p.curves[key] = dark
+            if (mode == PaperProfile.GRAY) { p.load[key] = intArrayOf(grayLast(), grayLast0()); p.heat.remove(key) }
+            else { p.load.remove(key); p.heat[key] = heat1() }
+            val calT = printer?.lastStartTempC
+            if (mode == PaperProfile.GRAY && calT != null) p.calTemp[key] = calT else p.calTemp.remove(key)
             // One profile per roll type
             roll?.let { r -> profiles.filter { it.barcode == r.barcode }.forEach { it.barcode = null }; p.barcode = r.barcode }
             PaperProfile.save(prefs, profiles)
@@ -2168,12 +2358,21 @@ class MainActivity : AppCompatActivity() {
             reading = null
             scope.launch {
                 val r = withContext(Dispatchers.Default) {
-                    runCatching { ChartReader.read(decode(uri), w, h, chart) }
+                    runCatching { ChartReader.read(decode(uri), cw, ch, chart) }
                         .onFailure { log("Calibration: ${it.message}") }.getOrNull()
                 }
                 if (r == null) { status.setText(R.string.cal_not_found); return@launch }
                 reading = r.dark
-                status.text = getString(R.string.cal_result, r.dark.joinToString(" ") { Math.round(it * 100).toString() })
+                status.text = getString(R.string.cal_result, r.dark.joinToString(" ") { Math.round(it * 100).toString() }) +
+                    // Steps at the top that all read black were printed for nothing: the paper is black from
+                    // there on, so the tones above are squeezed into the steps before it
+                    r.dark.size.let { n ->
+                        val full = r.dark.indexOfFirst { it >= 0.97f }
+                        if (full in 1 until n - 5)
+                            "\n\nThe paper is black from step ${full + 1} of $n: ${n - full} steps carry no tone. " +
+                                "The density is too high for this paper and mode; calibrate at a lower density."
+                        else ""
+                    }
                 imgChart.setImageBitmap(r.rectified)
                 imgChart.visibility = View.VISIBLE
                 imgPlot.setImageBitmap(ChartReader.plot(r.dark, 600, 300))
@@ -2183,24 +2382,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun printCalibration(mode: String, w: Int, h: Int, density: Int) {
+    // w x h: the printed label (print width, label height); cw x ch: the chart, smaller than that on a
+    // photo-frame label, where it sits in the window
+    private fun printCalibration(mode: String, w: Int, h: Int, cw: Int, ch: Int, density: Int) {
         val p = printer ?: return
         val labelType = intArrayOf(1, 2, 3, 5)[paperIndex]
         val look = lookOf(mode)
-        val caption = (CAL_LOOKS.firstOrNull { it.first == mode }?.third ?: "CAL") + " D$density"
+        val win = selectedLabel.window
+        val labelPx = ImageProcessor.mmToPx(physSizeMm().first)
+        // Moves a chart of cw x ch into the label raster, at the window plus the fine-tuning offset
+        fun embed(chart: ByteArray): ByteArray {
+            if (win == null) return chart
+            val out = ByteArray(w * h)
+            val x0 = ImageProcessor.mmToPx(win.x + sliderOffsetX.value) - (labelPx - w) / 2
+            val y0 = ImageProcessor.mmToPx(win.y + sliderOffsetY.value)
+            for (y in 0 until ch) { val yy = y0 + y; if (yy !in 0 until h) continue
+                for (x in 0 until cw) { val xx = x0 + x; if (xx in 0 until w) out[yy * w + xx] = chart[y * cw + x] } }
+            return out
+        }
         printJob { onProgress ->
-            log("Calibration chart ${w}×$h, $mode, density $density …")
+            log("Calibration chart ${cw}×$ch" + (if (win != null) " in the window of a ${w}×$h label" else "") + ", $mode, density $density …")
             if (mode == PaperProfile.GRAY) {
-                val levels = withContext(Dispatchers.Default) { TestChart.grayCalibration(w, h, "CAL 16B D$density") }
+                // The load goes on the chart, so a print can be matched to its settings
+                val caption = "CAL 16B D$density L${grayLast()}/${grayLast0()}"
+                val levels = embed(withContext(Dispatchers.Default) { TestChart.grayCalibration(cw, ch, caption) })
                 val r = ImageProcessor.Result(ByteArray(w * h), w, h, Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888), levels)
                 p.printResult(r, false, density, labelType, 1, onProgress)
             } else {
-                val bits = withContext(Dispatchers.Default) {
-                    val px = IntArray(w * h)
-                    TestChart.calibration(w, h, caption, look)
-                        .getPixels(px, 0, w, 0, 0, w, h)
-                    ByteArray(w * h) { if (px[it] and 0xFFFFFF == 0) 1 else 0 }
-                }
+                val caption = (CAL_LOOKS.firstOrNull { it.first == mode }?.third ?: "CAL") + " D$density" +
+                    (if (firmwarePatched()) " H${heat1()}" else "")
+                val bits = embed(withContext(Dispatchers.Default) {
+                    val px = IntArray(cw * ch)
+                    TestChart.calibration(cw, ch, caption, look)
+                        .getPixels(px, 0, cw, 0, 0, cw, ch)
+                    ByteArray(cw * ch) { if (px[it] and 0xFFFFFF == 0) 1 else 0 }
+                })
                 p.print(bits, w, h, density, labelType, 1, onProgress)
             }
         }
@@ -2234,7 +2450,8 @@ class MainActivity : AppCompatActivity() {
         val key = currentChartKey()
         scope.launch {
             val density = sliderDensity.value.toInt()
-            val caption = (CAL_LOOKS.firstOrNull { it.first == mode }?.third ?: "CAL") + " D$density"
+            val caption = (CAL_LOOKS.firstOrNull { it.first == mode }?.third ?: "CAL") + " D$density" +
+                (if (firmwarePatched()) " H${heat1()}" else "")
             // The calibration chart is made at print resolution, so it is drawn 1:1
             val chart = withContext(Dispatchers.Default) {
                 if (calibrate) TestChart.calibration(w, h, caption, lookOf(mode)) else TestChart.create(w, h, l.round)
@@ -2270,11 +2487,11 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.flash_title)
             .setMessage(getString(R.string.flash_message, name, bytes.size, "$major.$minor"))
             .setNegativeButton(R.string.cancel, null)
-            .setPositiveButton(R.string.flash) { _, _ -> runFlash(bytes, major, minor) }
+            .setPositiveButton(R.string.flash) { _, _ -> runFlash(bytes, major, minor, name) }
             .show()
     }
 
-    private fun runFlash(bytes: ByteArray, major: Int, minor: Int) {
+    private fun runFlash(bytes: ByteArray, major: Int, minor: Int, name: String) {
         val p = printer ?: return
         val msg = TextView(this).apply { setPadding(dp(24f).toInt(), dp(16f).toInt(), dp(24f).toInt(), dp(8f).toInt()) }
         val bar = com.google.android.material.progressindicator.LinearProgressIndicator(this).apply {
@@ -2295,6 +2512,8 @@ class MainActivity : AppCompatActivity() {
                         msg.text = getString(R.string.flash_block, cur, tot)
                     }
                 }
+                prefs.edit().putString("fwName", name).putLong("fwTime", System.currentTimeMillis()).apply()
+                log("Firmware file flashed: $name")
                 runOnUiThread {
                     dlg.dismiss()
                     MaterialAlertDialogBuilder(this@MainActivity).setTitle(R.string.flash_done_title)

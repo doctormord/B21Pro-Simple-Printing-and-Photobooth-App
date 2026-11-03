@@ -68,6 +68,10 @@ Things that look like bugs but are deliberate:
   knee at ~25 % coverage. Without it photos print far too dark (tried in 1.4.0-beta23). To
   re-measure, print the calibration chart (debug console), photograph it and run `tools/calib.py`;
   the result goes into `PrintCurve.kt` (one table per density).
+- The print start has two forms: 9 bytes for the original firmware (the manufacturer's app) and 11 bytes
+  for the patched one (gray load `last` / `last0`, 1-bit heat). The printer profile "original / patched" in
+  the debug console picks it and defaults to original; do not guess it from a firmware name. Gray always
+  sends data[7] = 1, 1-bit takes it from the debug setting.
 - Round labels and Memory Film print past the edge (bleed), round labels are not masked.
 - Red/black: the colour is chosen per area (blurred tone, 2 × 2-dot cells), not per dot. A red dot
   next to a black one prints black.

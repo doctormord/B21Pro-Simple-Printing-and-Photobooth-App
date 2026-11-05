@@ -32,7 +32,8 @@ out of the printer. The gray prints were made with a patched printer firmware (s
 - Portrait photos from Samsung phones: the depth map splits subject and background; the background
   can print lighter, darker, in another raster or red. Photos without a depth map get the same with
   *Find subject*: an on-device model finds the person and the mask is used like a depth map
-- Red and black on two-colour rolls: a band of image tones, set with a slider, prints red
+- Red and black on two-colour rolls: a band of image tones, set with a slider, prints red, or the colour
+  of the picture decides (for coloured labels and logos)
 - Soft edge: the photo fades to white towards its border, round on circle labels
 - Instant frame with an optional caption, printed by the app on plain labels; the frame can be
   black, with white caption and stamp
@@ -286,6 +287,13 @@ calibrated (see *Calibration*); with a measured curve it is corrected like the p
   prints black, a bit like split toning. The band edges blend softly. The colour is decided on a
   slightly blurred image and blended in 2 × 2-dot cells, because a red dot next to a black one turns
   black (the heat spreads) and fine red/black mixtures print as a muddy brown. Signs print black unless a colour is chosen for the text or the frame.
+
+  *Split red and black by colour* decides by the colour of the source instead of its tone, for coloured
+  labels and logos: red ink prints red, dark neutral ink black, paper colour white. Darkness is taken from
+  the green/blue channel, so light red text still counts as ink. *Red threshold* sets how red a dot must be
+  to print red. With the raster *Text* every dot is decided on its own (no dithering, no blur), with the
+  slider *Bitmap threshold* for the tone from which a dot prints. A tap on the preview opens it at one dot
+  per pixel, with pinch zoom, to check fine structure.
 
 ![Soft edge](docs/soft-edge.png)
 

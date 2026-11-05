@@ -105,6 +105,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchOverscan: MaterialSwitch
     private lateinit var switchInvert: MaterialSwitch
     private lateinit var switchRed: MaterialSwitch
+    private lateinit var switchColorSplit: MaterialSwitch
+    private lateinit var sliderSplit: com.google.android.material.slider.Slider
+    private lateinit var sliderTone: com.google.android.material.slider.Slider
+    private var lastPreview: android.graphics.Bitmap? = null
     private lateinit var sliderRed: com.google.android.material.slider.RangeSlider
     private lateinit var sliderDepthCut: Slider
     private lateinit var sliderBgStrength: Slider
@@ -158,6 +162,13 @@ class MainActivity : AppCompatActivity() {
         switchSoftEdge = findViewById(R.id.switchSoftEdge)
         switchOverscan = findViewById(R.id.switchOverscan)
         switchRed = findViewById(R.id.switchRed)
+        switchColorSplit = findViewById(R.id.switchColorSplit)
+        sliderSplit = findViewById(R.id.sliderSplit)
+        sliderTone = findViewById(R.id.sliderTone)
+        sliderTone.value = prefs.getFloat("splitTone2", 50f)
+        sliderTone.addOnChangeListener { sl, _, _ -> prefs.edit().putFloat("splitTone2", sl.value).apply(); scheduleRender() }
+        // Tap on the preview: the print at one dot per pixel, pinch to zoom, drag to move
+        preview.setOnClickListener { lastPreview?.let { showLoupe(it) } }
         sliderRed = findViewById(R.id.sliderRed)
         sliderDepthCut = findViewById(R.id.sliderDepthCut)
         sliderBgStrength = findViewById(R.id.sliderBgStrength)
@@ -273,6 +284,11 @@ class MainActivity : AppCompatActivity() {
         fun showRedBand() {
             val (lo, hi) = sliderRed.values.let { it[0].toInt() to it[1].toInt() }
             txtRedBand.text = getString(R.string.red_band, lo, hi)
+            val tones = !switchColorSplit.isChecked
+            findViewById<View>(R.id.splitBox).visibility = if (tones) View.GONE else View.VISIBLE
+            findViewById<View>(R.id.toneBox).visibility = if (tones) View.GONE else View.VISIBLE
+            findViewById<View>(R.id.redTones).visibility = if (tones) View.VISIBLE else View.GONE
+            sliderRed.visibility = if (tones) View.VISIBLE else View.GONE
         }
         switchRed.isChecked = prefs.getBoolean("redRoll", false)
         redBand.visibility = if (switchRed.isChecked) View.VISIBLE else View.GONE
@@ -289,6 +305,12 @@ class MainActivity : AppCompatActivity() {
         toggleSpeed.isEnabled = !switchRed.isChecked
         sliderRed.values = listOf(prefs.getFloat("redLo", 50f), prefs.getFloat("redHi", 100f))
         showRedBand()
+        switchColorSplit.isChecked = prefs.getBoolean("colorSplit", false)
+        sliderSplit.value = prefs.getFloat("splitRed", 45f)
+        sliderSplit.addOnChangeListener { sl, _, _ -> prefs.edit().putFloat("splitRed", sl.value).apply(); scheduleRender() }
+        switchColorSplit.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("colorSplit", on).apply(); showRedBand(); scheduleRender()
+        }
         sliderRed.addOnChangeListener { sl, _, _ ->
             prefs.edit().putFloat("redLo", sl.values[0]).putFloat("redHi", sl.values[1]).apply()
             showRedBand()
@@ -911,9 +933,17 @@ class MainActivity : AppCompatActivity() {
             preview.setImageBitmap(withContext(Dispatchers.Default) {
                 ImageProcessor.forScreen(r.preview, (r.preview.width * s).toInt(), (r.preview.height * s).toInt())
             })
+            lastPreview = r.preview
             sizePreviewCard(r.preview.width, r.preview.height, label.round)
             updatePrintButton()
         }
+    }
+
+    private fun showLoupe(bmp: android.graphics.Bitmap) {
+        val v = PixelZoomView(this).apply { setBitmap(bmp) }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setView(v).setPositiveButton(android.R.string.ok, null).show().window?.setLayout(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, (resources.displayMetrics.heightPixels * 0.8).toInt())
     }
 
     // Tone target of photos (PrintCurve gamma), set in the debug console
@@ -950,6 +980,9 @@ class MainActivity : AppCompatActivity() {
             },
             redLo = sliderRed.values[0] / 100f,
             redHi = sliderRed.values[1] / 100f,
+            colorSplit = switchColorSplit.isChecked,
+            splitRed = sliderSplit.value,
+            splitTone = sliderTone.value / 100f,
             grayCurve = if (prefs.getBoolean("grayLinear", false)) FloatArray(16) { it / 15f }
                 else profile?.let { pr -> pr.grayDensity(sliderDensity.value.toInt())?.let { d -> pr.curve(PaperProfile.GRAY, d) } },
             grayMaxLevel = if (prefs.getBoolean("grayMax7", false)) 7 else 15,

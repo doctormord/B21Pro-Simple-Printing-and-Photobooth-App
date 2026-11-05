@@ -50,6 +50,13 @@ object ImageProcessor {
         // RED_BLACK: the band of image tones (0 = black, 1 = white) that prints red
         val redLo: Float = 0.5f,
         val redHi: Float = 1f,
+        // RED_BLACK: split by the colour of the source (red ink prints red, dark neutral ink black,
+        // paper-coloured areas white) instead of by tone; for coloured labels and logos
+        val colorSplit: Boolean = false,
+        // Colour split: redness (red minus the larger of green/blue, 0..255) from which a dot prints red
+        val splitRed: Float = 45f,
+        // Bitmap look (TEXT): tone below which a dot prints (0..1, 0.5 = middle)
+        val splitTone: Float = 0.5f,
         // From the paper profile, for this density (see PaperProfile.curves); null = built-in default
         val grayCurve: FloatArray? = null,
         // Gray mode uses only levels 0..grayMaxLevel (7: the tones in between are dithered)
@@ -229,12 +236,22 @@ object ImageProcessor {
             else -> true
         }
         val subject = if (src != null && depth != null && bgSplit) subjectMask(src, depth, w, h, area, o) else null
-        val gray = luminance(px)
+        val split = ink == Ink.RED_BLACK && o.colorSplit && src != null
+        // Colour split: red ink absorbs green, so the darkness is the weaker of green and blue (a pink
+        // or red text counts as dark, beige paper as light); redness tells red from black ink
+        val gray = if (split) FloatArray(px.size) { i ->
+            val c = px[i]; val a = Color.alpha(c) / 255f
+            minOf(Color.green(c), Color.blue(c)) * a + 255f * (1 - a)
+        } else luminance(px)
+        val redness = if (split) FloatArray(px.size) { i ->
+            val c = px[i]; (Color.red(c) - maxOf(Color.green(c), Color.blue(c))).coerceAtLeast(0) * (Color.alpha(c) / 255f)
+        } else null
         val bgGray = if (subject != null && o.background == Background.LOOK) gray.copyOf() else null
         val tone = if (ink == Ink.RED_BLACK) FloatArray(w * h) else null
-        prepare(gray, w, h, area, o, fade, ink, tone, subject)
+        val eo = o
+        prepare(gray, w, h, area, eo, fade, ink, tone, subject)
         var levels = if (ink == Ink.GRAY) toLevels(gray, w, h, o.grayCurve ?: PrintCurve.GRAY, o.grayMaxLevel) else null
-        val bits = levels?.let { l -> ByteArray(w * h) { if (l[it] > 0) 1 else 0 } } ?: toBits(gray, w, h, o)
+        val bits = levels?.let { l -> ByteArray(w * h) { if (l[it] > 0) 1 else 0 } } ?: toBits(gray, w, h, eo)
         // Background in another look: the same photo prepared and rasterised again with that look's
         // tone correction, then the two are joined along the depth boundary (blue-noise mixed across
         // the soft edge of the mask, so the seam has no outline)
@@ -257,7 +274,7 @@ object ImageProcessor {
             for (i in bits.indices) if (pick[i]) bits[i] = bgBits[i]
             bgPick = pick
         }
-        val red = tone?.let { redMask(bits, it, w, h, o, subject) }
+        val red = tone?.let { redMask(bits, it, w, h, o, subject, redness) }
         canvasBmp.recycle()
 
         fun setDot(i: Int, v: Int) {
@@ -317,7 +334,7 @@ object ImageProcessor {
             }
         }
 
-        val curve = if (measured(o)) o else null
+        val curve = if (measured(eo)) eo else null
         val bgCurve = bgOpts?.takeIf { measured(it) }
         return Result(bits, w, h,
             composePreview(bits, w, h, labelW, headLeft, window, frameColor, curve, levels, red, bgCurve, bgPick),
@@ -389,8 +406,21 @@ object ImageProcessor {
     // The band edges are soft, like split toning: across RED_FEATHER of the tone range the share of red
     // rises, mixed by an ordered pattern of 2 × 2-dot cells (coarse on purpose, see above).
     // With a depth split (Background.RED / SUBJECT_RED) the subject mask sets the share instead.
-    private fun redMask(bits: ByteArray, tone: FloatArray, w: Int, h: Int, o: Options, subject: FloatArray?): ByteArray {
+    private fun redMask(bits: ByteArray, tone: FloatArray, w: Int, h: Int, o: Options, subject: FloatArray?, redness: FloatArray? = null): ByteArray {
         val byDepth = subject != null && (o.background == Background.RED || o.background == Background.SUBJECT_RED)
+        if (redness != null) {
+            // Share of red = how far the (lightly blurred) redness lies above the threshold; red ink
+            // is about 120 of 255 above the other channels, beige paper and black text below 30
+            // TEXT (bitmap/logo): a hard decision per dot, so thin lines keep their colour
+            val hard = o.raster == Raster.TEXT
+            val rn = if (hard) redness else boxBlur(redness, w, h, 1)
+            return ByteArray(w * h) { i ->
+                if (bits[i].toInt() == 0) return@ByteArray 0
+                if (hard) return@ByteArray if (rn[i] > o.splitRed) 1 else 0
+                val cell = ((i / w) shr 1 and 3) * 4 + ((i % w) shr 1 and 3)
+                if (((rn[i] - o.splitRed) / 40f + 0.5f).coerceIn(0f, 1f) > (BAYER4[cell] + 0.5f) / 16f) 1 else 0
+            }
+        }
         val t = boxBlur(tone, w, h, 3)
         val f = RED_FEATHER * 255f
         val lo = o.redLo * 255f; val hi = o.redHi * 255f
@@ -820,7 +850,7 @@ object ImageProcessor {
         // brightness bends the mid-tones (exponent 2^∓1 at the slider ends), contrast is an S-curve
         // around mid-grey. A plain offset clipped whole skies to paper white within a few steps.
         val tones = toneCurve(o.brightness, o.contrast)
-        val photo = o.raster != Raster.TEXT
+        val photo = o.raster != Raster.TEXT || o.colorSplit
         // Dot gain only matters for patterns of single dots; coarse cells and thick lines print true
         val fine = o.raster == Raster.DOTS || o.raster == Raster.SCANLINES || o.raster == Raster.SCANLINES_WIDE
         val curve = PrintCurve.lut(o.density, o.toneGamma, o.monoCurve)
@@ -871,7 +901,7 @@ object ImageProcessor {
     private fun toBits(gray: FloatArray, w: Int, h: Int, o: Options): ByteArray {
         val bits = ByteArray(w * h)
         when (o.raster) {
-            Raster.TEXT -> for (i in gray.indices) bits[i] = if (gray[i] < 128) 1 else 0
+            Raster.TEXT -> for (i in gray.indices) bits[i] = if (gray[i] < o.splitTone * 255f) 1 else 0
             Raster.DOTS -> {
                 // Round dots at 45°. The screen repeats after 8 dots along both diagonals, so every dot
                 // has the same shape on the dot grid (a non-integer period gave uneven dots and a beat

@@ -75,6 +75,9 @@
     <string name="density">Print density</string>
     <string name="paper_type">Paper type</string>
     <string name="red_roll">Black + red roll</string>
+    <string name="color_split">Split red and black by colour</string>
+    <string name="split_red">Red threshold (lower = more red)</string>
+    <string name="split_tone">Bitmap threshold (higher = darker)</string>
     <string name="red_tones">Red tones</string>
     <string name="red_band">%1$d–%2$d %%</string>
     <string name="copies">Copies</string>

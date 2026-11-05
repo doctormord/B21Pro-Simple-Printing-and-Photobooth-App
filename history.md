@@ -4,6 +4,25 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.5.2 (2026-11-05)
+
+### Red and black by colour
+On two-colour rolls the colour was chosen by image tone only, so a coloured label came out with all its red
+in dark and light red mixed, and light red text almost disappeared. A new switch decides by the colour of
+the source: red ink absorbs green, so the darkness is the weaker of the green and blue channel (red text
+counts as ink, beige paper as light), and the amount by which red exceeds green and blue tells red from
+black ink. The colour is decided per dot; with the raster *Text* without the 3 × 3 blur and the 2 × 2 mixing
+cells, which had run thin lines together. The slider *Red threshold* sets the limit.
+
+### Bitmap threshold
+The raster *Text* has a threshold slider. Engraved hatching (a copperplate pear on a label) shrinks to
+mid-grey at the print head's 384 dots; at the fixed threshold of 128 it became a black-and-white mush, a
+lower threshold keeps the darkest lines. Dithering such areas and thresholding text by contrast were tried
+and dropped: small text counts as hatching to any detector, and dithered letters fray.
+
+### Zoom
+A tap on the preview opens the print at one dot per pixel, with pinch zoom and drag.
+
 ## 1.5.1 (2026-11-03)
 
 ### Load and heat bytes, printer profile

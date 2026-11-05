@@ -74,6 +74,9 @@
     <string name="density">Druckdichte</string>
     <string name="paper_type">Papierart</string>
     <string name="red_roll">Rolle Schwarz + Rot</string>
+    <string name="color_split">Rot und Schwarz nach Farbe trennen</string>
+    <string name="split_red">Rotschwelle (niedriger = mehr Rot)</string>
+    <string name="split_tone">Bitmap-Schwelle (höher = dunkler)</string>
     <string name="red_tones">Rote Tonwerte</string>
     <string name="red_band">%1$d–%2$d %%</string>
     <string name="copies">Anzahl</string>

@@ -560,7 +560,26 @@
                     android:layout_marginTop="8dp" android:text="@string/red_roll" />
                 <LinearLayout android:id="@+id/redBand" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/switchColorSplit"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="@string/color_split" />
+                    <LinearLayout android:id="@+id/splitBox" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/split_red" android:textAppearance="?attr/textAppearanceLabelLarge" />
+                        <com.google.android.material.slider.Slider android:id="@+id/sliderSplit"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:valueFrom="10" android:valueTo="120" android:stepSize="1" android:value="45" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/toneBox" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:orientation="vertical">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/split_tone" android:textAppearance="?attr/textAppearanceLabelLarge" />
+                        <com.google.android.material.slider.Slider android:id="@+id/sliderTone"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:valueFrom="10" android:valueTo="90" android:stepSize="1" android:value="50" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/redTones" android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="horizontal" android:layout_marginTop="4dp">
                         <TextView android:layout_width="0dp" android:layout_weight="1"
                             android:layout_height="wrap_content" android:text="@string/red_tones"

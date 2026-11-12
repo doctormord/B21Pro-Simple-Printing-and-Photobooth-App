@@ -1,6 +1,14 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.mikepenz.aboutlibraries.plugin")
+}
+
+// Licenses of the bundled libraries, collected at build time into res/raw/aboutlibraries.json and shown
+// by the app (main screen, last entry). Offline: the build fetches nothing, the app has no network anyway.
+aboutLibraries {
+    offlineMode = true
+    excludeFields = arrayOf("generated")
 }
 
 android {

@@ -267,4 +267,5 @@
     <string name="orient_hint">Tap: upright or landscape · long press: the other direction</string>
     <string name="booth_mode_strip_v">Strip</string>
     <string name="booth_mode_strip_h">Strip</string>
+    <string name="oss_licenses">Open-source licenses</string>
 </resources>

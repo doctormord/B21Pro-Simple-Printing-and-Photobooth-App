@@ -254,4 +254,5 @@
     <string name="orient_hint">Tippen: Hoch oder Quer · lang drücken: andere Drehrichtung</string>
     <string name="booth_mode_strip_v">Streifen</string>
     <string name="booth_mode_strip_h">Streifen</string>
+    <string name="oss_licenses">Open-Source-Lizenzen</string>
 </resources>

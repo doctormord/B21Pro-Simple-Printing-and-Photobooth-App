@@ -12,12 +12,17 @@ screenshot is cut to the union of the views named in the scene. A moved or resiz
 crop with it. A new feature is a new scene function (see SCENES below) and, if it needs a view the
 layout has no id for, an `android:id` in the layout.
 
-Needs: adb, ffmpeg, a running emulator (any API 30+ image) and the debug APK (run-as writes the
-preferences); the scenes rasters, softedge and film also need Pillow for the montages. Most photos
-come from the emulator's camera through the photo booth; tools/screenshots/photos/ holds our own
-photos used as subjects (subject.jpg goes into the emulator's gallery and is picked from there). No
-printer is needed; what only a printer can show (battery, prints) is left out or faked with files in
-the app's storage.
+Needs: adb, ffmpeg, Pillow (for the montages), the debug APK (run-as writes the preferences) and a
+running emulator (any API 30+ image) whose camera shows our own photo instead of the emulator's
+virtual room:
+
+    emulator -avd b21test -camera-back imagefile:$PWD/tools/screenshots/photos/camera.jpg
+
+tools/screenshots/photos/ holds our own photos used as subjects: subject.jpg (pushed into the gallery)
+is the photo of the main screen, camera.jpg the same photo placed where the emulator's portrait
+viewfinder shows a camera image file (a slice left of the middle), and quince-label-art.jpg the
+red/black example. No printer is needed; what only a printer can show (battery, prints) is left
+out or faked with files in the app's storage.
 """
 import argparse
 import os
@@ -36,7 +41,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PKG = "de.b21print"
 APK = ROOT / "app/build/outputs/apk/debug/app-debug.apk"
 OUT = ROOT / "docs"
-SUBJECT = Path(__file__).resolve().parent / "photos/subject.jpg"
+PHOTOS = Path(__file__).resolve().parent / "photos"
+SUBJECT = PHOTOS / "subject.jpg"
 SIZE, DENSITY = "1080x2340", "480"   # Galaxy S25
 CUR = {"size": SIZE}
 
@@ -258,17 +264,17 @@ def photo_from_booth():
     time.sleep(2.5)
 
 
-def push_subject():
-    """subject.jpg into the gallery, touched so it is the newest picture and the picker shows it first."""
-    dest = "/sdcard/Pictures/b21-subject.jpg"
-    adb("push", str(SUBJECT), dest)
+def push_subject(photo=SUBJECT):
+    """A photo into the gallery, touched so it is the newest picture and the picker shows it first."""
+    dest = f"/sdcard/Pictures/b21-{photo.name}"
+    adb("push", str(photo), dest)
     sh(f"touch {dest}")
     sh(f"am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{dest}")
     time.sleep(2)
 
 
 def photo_from_gallery():
-    """The subject photo through the gallery button, cropped to the label format."""
+    """The newest photo through the gallery button, cropped to the label format."""
     tap("btnGallery")
     end = time.time() + 30
     while time.time() < end:
@@ -551,6 +557,15 @@ def film():
 
 
 @scene
+def redsplit():
+    """Red and black split by colour: the quince jam label art on a two-colour roll."""
+    push_subject(PHOTOS / "quince-label-art.jpg")
+    start({"label": "Standard", "redRoll": True, "colorSplit": True, "raster": "TEXT"})
+    photo_from_gallery()
+    shot("red-split.png", ["stage"], width=560)
+
+
+@scene
 def overview():
     """The hero image: photo, red sign, booth review side by side (needs those scenes to have run)."""
     parts = [FULL.get("photo"), FULL.get("sign"), FULL.get("booth")]
@@ -568,7 +583,7 @@ def overview():
     print(f"  {dest.name}")
 
 
-ORDER = ["photo", "instant", "sign", "booth", "recent", "calibration", "console", "overview", "rasters", "softedge", "film"]
+ORDER = ["photo", "instant", "sign", "booth", "recent", "calibration", "console", "overview", "rasters", "softedge", "film", "redsplit"]
 
 
 def main():

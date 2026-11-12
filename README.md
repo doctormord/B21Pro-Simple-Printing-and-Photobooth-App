@@ -299,6 +299,8 @@ calibrated (see *Calibration*); with a measured curve it is corrected like the p
   slider *Bitmap threshold* for the tone from which a dot prints. A tap on the preview opens it at one dot
   per pixel, with pinch zoom, to check fine structure.
 
+  <img src="docs/red-split.png" width="45%" alt="A jam jar label split into red and black by colour">
+
 ![Soft edge](docs/soft-edge.png)
 
 ### Depth map

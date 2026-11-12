@@ -169,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         sliderTone.addOnChangeListener { sl, _, _ -> prefs.edit().putFloat("splitTone2", sl.value).apply(); scheduleRender() }
         // Tap on the preview: the print at one dot per pixel, pinch to zoom, drag to move
         preview.setOnClickListener { lastPreview?.let { showLoupe(it) } }
+        findViewById<View>(R.id.btnLicenses).setOnClickListener { Licenses.show(this) }
         sliderRed = findViewById(R.id.sliderRed)
         sliderDepthCut = findViewById(R.id.sliderDepthCut)
         sliderBgStrength = findViewById(R.id.sliderBgStrength)

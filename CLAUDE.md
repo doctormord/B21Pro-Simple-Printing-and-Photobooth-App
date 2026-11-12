@@ -98,6 +98,9 @@ Things that look like bugs but are deliberate:
   again (`tools:node="remove"`). Keep it that way when updating dependencies: the app has no network
   access. Check the merged manifest after a dependency change.
 - Settings that should survive a restart go into the `prefs` SharedPreferences.
+- *Open-source licenses* (`Licenses.kt`) shows `res/raw/aboutlibraries.json`, which the AboutLibraries
+  plugin writes at build time, offline and so without license texts. A new dependency under a license
+  other than Apache-2.0 needs its text in `res/raw` and a line in `Licenses.textFor`.
 
 ## Checking changes in the emulator
 

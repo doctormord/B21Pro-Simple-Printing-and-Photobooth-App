@@ -585,7 +585,14 @@ lists what is still open.
   (bundled model, runs on the device, under Google's ML Kit terms): the subject mask. The library's
   manifest asks for network access for its usage metrics; the app's manifest removes the `INTERNET`
   and `ACCESS_NETWORK_STATE` permissions again. The app has no network access and sends nothing.
-- AndroidX, Material Components, CameraX.
+- AndroidX, Material Components, CameraX (Apache-2.0; CameraX also contains libyuv, BSD).
+- [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines) (Apache-2.0).
+
+The app lists every bundled library with its version and license under *Open-source licenses* at the
+end of the main screen, with the full Apache-2.0 and libyuv license texts; ML Kit and Google's
+Android SDK parts link to their terms. The list is generated at build time by the
+[AboutLibraries](https://github.com/mikepenz/AboutLibraries) Gradle plugin in offline mode (the build
+fetches nothing, and the app ships no AboutLibraries code).
 
 ## Disclaimer
 

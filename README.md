@@ -1,5 +1,10 @@
 # B21 Print
 
+> [!WARNING]
+> This project is intended for informational and educational purposes only. It is not affiliated
+> with or endorsed by NIIMBOT. Flashing modified printer firmware voids the warranty and can damage
+> your printer; use it only on printers you own and at your own risk.
+
 An Android app for the NIIMBOT B21 Pro label printer. It prints photos and text signs over
 Bluetooth, with no account, no cloud catalog and no RFID roll check, and it has a photo booth mode.
 It is made for tablets and phones alike: the booth is a good fit for a tablet on a stand, but it
@@ -9,13 +14,12 @@ tablet). The screenshots in this README are from a phone-sized screen, 1080 × 2
 ![A photo, a red sign and the photo booth review](docs/overview.png)
 
 <p>
-  <img src="docs/print-gray-amiga.jpg" width="58%" alt="Gray and Amiga fine prints on 40 × 40 mm labels">
-  <img src="docs/printer-gray.jpg" width="40%" alt="Gray print coming out of the B21 Pro">
+  <img src="docs/print-red-black.jpg" width="56%" alt="Jam jar label printed in red and black">
+  <img src="docs/print-red-black-roll.jpg" width="42%" alt="Red and black label still on the two-colour roll">
 </p>
 
-Real prints on third-party 40 × 40 mm labels. First photo: the 16-level gray mode (left) and
-*Amiga fine*, 1-bit (right), each under its calibration chart. Second photo: a gray print straight
-out of the printer. The gray prints were made with a patched printer firmware (see *Gray mode*).
+Real prints in red and black on a two-colour roll: jam jar labels, one taken off the roll (left) and
+one still on it (right).
 
 ## Features
 
@@ -510,7 +514,7 @@ the BLE characteristic and shows every reply. It also offers:
 - **Log** with copy and clear buttons; it also shows the app's own log lines while open. The same
   lines go to Android's log under the tag `B21`, so `adb logcat -s B21` shows them live.
 
-<img src="docs/test-chart.png" width="45%" alt="Test chart on a Memory Film label">
+<img src="docs/test-chart.png" width="45%" alt="A photo on a Memory Film label">
 
 `tools/mkchart.py` generates the same chart as a PNG for any label size.
 

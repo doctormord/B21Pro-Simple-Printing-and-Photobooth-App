@@ -12,10 +12,17 @@ screenshot is cut to the union of the views named in the scene. A moved or resiz
 crop with it. A new feature is a new scene function (see SCENES below) and, if it needs a view the
 layout has no id for, an `android:id` in the layout.
 
-Needs: adb, ffmpeg, a running emulator (any API 30+ image) and the debug APK (run-as writes the
-preferences). Photos come from the emulator's camera through the photo booth, so no picture is
-stored in the repository. No printer is needed; what only a printer can show (battery, prints) is
-left out or faked with files in the app's storage.
+Needs: adb, ffmpeg, Pillow (for the montages), the debug APK (run-as writes the preferences) and a
+running emulator (any API 30+ image) whose camera shows our own photo instead of the emulator's
+virtual room:
+
+    emulator -avd b21test -camera-back imagefile:$PWD/tools/screenshots/photos/camera.jpg
+
+tools/screenshots/photos/ holds our own photos used as subjects: subject.jpg (pushed into the gallery)
+is the photo of the main screen, camera.jpg the same photo placed where the emulator's portrait
+viewfinder shows a camera image file (a slice left of the middle), and quince-label-art.jpg the
+red/black example. No printer is needed; what only a printer can show (battery, prints) is left
+out or faked with files in the app's storage.
 """
 import argparse
 import os
@@ -34,6 +41,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PKG = "de.b21print"
 APK = ROOT / "app/build/outputs/apk/debug/app-debug.apk"
 OUT = ROOT / "docs"
+PHOTOS = Path(__file__).resolve().parent / "photos"
+SUBJECT = PHOTOS / "subject.jpg"
 SIZE, DENSITY = "1080x2340", "480"   # Galaxy S25
 CUR = {"size": SIZE}
 
@@ -255,6 +264,68 @@ def photo_from_booth():
     time.sleep(2.5)
 
 
+def push_subject(photo=SUBJECT):
+    """A photo into the gallery, touched so it is the newest picture and the picker shows it first."""
+    dest = f"/sdcard/Pictures/b21-{photo.name}"
+    adb("push", str(photo), dest)
+    sh(f"touch {dest}")
+    sh(f"am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{dest}")
+    time.sleep(2)
+
+
+def photo_from_gallery():
+    """The newest photo through the gallery button, cropped to the label format."""
+    tap("btnGallery")
+    end = time.time() + 30
+    while time.time() < end:
+        pics = [n for n in dump() if n.desc.startswith("Photo taken on")]
+        if pics:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError("no photo in the picker")
+    sh(f"input tap {pics[0].center[0]} {pics[0].center[1]}")
+    tap("btnCropDone", 30)
+    wait_for("stage", 20)
+    time.sleep(3)
+
+
+def loupe():
+    """The print as the loupe shows it (tap on the preview), cut to the picture: about 2 x print size."""
+    from PIL import Image
+    tap("preview")
+    time.sleep(1.5)
+    n = wait_for("custom")
+    capture(TMP / "raw.png")
+    tap("button1")
+    x0, y0, x1, y1 = n.b
+    img = Image.open(TMP / "raw.png").convert("RGB").crop((x0 + 8, y0 + 8, x1 - 8, y1 - 8))  # not the round corners
+    bg = Image.new("RGB", img.size, (0x20, 0x20, 0x20))
+    from PIL import ImageChops
+    # the loupe's dark background is not exactly #202020 after the screenshot: a small tolerance
+    mask = ImageChops.difference(img, bg).convert("L").point(lambda v: 255 if v > 16 else 0)
+    return img.crop(mask.getbbox())
+
+
+def montage(name, tiles, cols, gap=14, cap=36):
+    """Tiles (caption, image) in a grid, each under its caption, on white."""
+    from PIL import Image, ImageDraw, ImageFont
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 22)
+    except OSError:
+        font = ImageFont.load_default(22)
+    tw, th = max(t.width for _, t in tiles), max(t.height for _, t in tiles)
+    rows = (len(tiles) + cols - 1) // cols
+    out = Image.new("RGB", (cols * tw + (cols - 1) * gap, rows * (th + cap) + (rows - 1) * gap // 2), "white")
+    d = ImageDraw.Draw(out)
+    for i, (text, t) in enumerate(tiles):
+        x, y = (i % cols) * (tw + gap), (i // cols) * (th + cap + gap // 2)
+        d.text((x + 2, y + 6), text, fill="black", font=font)
+        out.paste(t, (x, y + cap))
+    out.save(OUT / name)
+    print(f"  {name}")
+
+
 OLD_FONT = "1.0"
 
 
@@ -438,6 +509,62 @@ def console():
     shot("debug-console.png", ["parentPanel"], pad=8)
 
 
+RASTERS = [("PHOTO", "Photo"), ("DOTS", "Halftone dots"), ("LINES", "Line screen"),
+           ("SCANLINES", "TV scanlines"), ("SCANLINES_WIDE", "TV scanlines, wide"), ("MAC", "Macintosh"),
+           ("AMIGA", "Amiga"), ("BAYER", "Amiga fine"), ("BLUE", "Blue noise"), ("RIEMERSMA", "Riemersma"),
+           ("FAX", "Fax"), ("TEXT", "Text/logo")]
+
+
+@scene
+def rasters():
+    """All raster looks on the subject photo, whole label and a close-up (from the loupe)."""
+    from PIL import Image
+    push_subject()
+    looks, detail = [], []
+    for key, title in RASTERS:
+        start({"label": "Square M", "raster": key})
+        photo_from_gallery()
+        img = loupe()
+        looks.append((title, img.resize((420, round(420 * img.height / img.width)), Image.LANCZOS)))
+        # close-up of the bear on the right button, at the loupe's scale (about twice the print)
+        cx, cy = int(img.width * 0.69), int(img.height * 0.28)
+        detail.append((title, img.crop((cx - 130, cy - 130, cx + 130, cy + 130))))
+    montage("raster-looks.png", looks, 4)
+    montage("raster-detail.png", detail, 4)
+
+
+@scene
+def softedge():
+    """Soft edge off and on, on a round label."""
+    from PIL import Image
+    push_subject()
+    tiles = []
+    for on in (False, True):
+        start({"label": "Circle 40", "softEdge": on})
+        photo_from_gallery()
+        p = shot(f"soft-{on}.png", ["stage"], width=560, out_dir=TMP)
+        tiles.append((f"Soft edge {'on' if on else 'off'}", Image.open(p).convert("RGB")))
+    montage("soft-edge.png", tiles, 2)
+
+
+@scene
+def film():
+    """The subject on a Memory Film label."""
+    push_subject()
+    start({"label": "Memory Film"})
+    photo_from_gallery()
+    shot("test-chart.png", ["stage"], width=560)
+
+
+@scene
+def redsplit():
+    """Red and black split by colour: the quince jam label art on a two-colour roll."""
+    push_subject(PHOTOS / "quince-label-art.jpg")
+    start({"label": "Standard", "redRoll": True, "colorSplit": True, "raster": "TEXT"})
+    photo_from_gallery()
+    shot("red-split.png", ["stage"], width=560)
+
+
 @scene
 def overview():
     """The hero image: photo, red sign, booth review side by side (needs those scenes to have run)."""
@@ -456,7 +583,7 @@ def overview():
     print(f"  {dest.name}")
 
 
-ORDER = ["photo", "instant", "sign", "booth", "recent", "calibration", "console", "overview"]
+ORDER = ["photo", "instant", "sign", "booth", "recent", "calibration", "console", "overview", "rasters", "softedge", "film", "redsplit"]
 
 
 def main():

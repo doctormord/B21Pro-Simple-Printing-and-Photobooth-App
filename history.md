@@ -4,6 +4,33 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.5.3 (2026-11-12)
+
+### Open-source licenses
+The APK bundles Apache-2.0 libraries (AndroidX, Material, CameraX, kotlinx.coroutines, ZXing), libyuv
+(BSD, inside CameraX) and ML Kit under Google's terms, and did not show any of their licenses. The entry
+*Open-source licenses* at the end of the main screen lists them. The list comes from the AboutLibraries
+Gradle plugin, which writes it into `res/raw` at build time; the app reads it with `org.json`, so no
+library is added at run time. Google's oss-licenses plugin was the other option, but brings a Play
+Services runtime library and its own activity. The plugin runs offline (no network in the build either),
+so the list has no license texts: Apache-2.0 and libyuv's text ship in `res/raw`, ML Kit and the
+Android SDK parts are links to their terms. The merged manifest still drops `INTERNET` and
+`ACCESS_NETWORK_STATE`.
+
+### Own photos in the docs
+The README's photos and the raster comparisons used pictures of unclear origin (an owl, prints on a TV),
+and every booth screenshot showed the emulator's virtual living room with its TV. Now everything comes
+from our own photos in `tools/screenshots/photos/`: the gallery photo is pushed into the emulator and
+picked through the photo picker, the booth gets the same photo as the emulator's camera image
+(`-camera-back imagefile:`; the portrait viewfinder shows only a slice left of the middle, so
+`camera.jpg` places the photo there). The raster looks, the close-up, the soft edge, Memory Film and the
+red/black example are scenes in `shots.py`; the tiles come from the loupe (one dot per pixel), the
+montages are made with Pillow. The project is now under the MIT license.
+
+On the key-ring photo the 1-bit looks seemed to show the picture about 1.2 × larger than *Photo* (gray).
+Measured on the loupe images the scale is the same: the 1-bit looks print the dark hand and background
+much darker, which moves the visible edges. The owl, on white, never showed this.
+
 ## 1.5.2 (2026-11-05)
 
 ### Red and black by colour

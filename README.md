@@ -445,12 +445,15 @@ cannot replace each other.
 `tools/screenshots/shots.py` makes the screenshots of this README in an emulator, set to the display
 of a Galaxy S25 (1080 × 2340, 480 dpi). It writes the app's settings to a preferences file, drives
 the app through the accessibility tree (views are found by resource id or text, not by position),
-takes the photo through the photo booth of the emulator's camera, and cuts every screenshot to the
-views a scene names, so a moved or resized view moves the crop with it. Needs `adb`, `ffmpeg`, a
-running emulator and the debug APK:
+takes its photos from our own pictures in `tools/screenshots/photos/` (through the gallery, and as
+the emulator's camera image for the photo booth), and cuts every screenshot to the views a scene
+names, so a moved or resized view moves the crop with it. Needs `adb`, `ffmpeg`, Pillow, the debug
+APK and an emulator started with our camera image (otherwise the booth shows the emulator's virtual
+room):
 
 ```sh
 ./gradlew assembleDebug
+emulator -avd b21test -camera-back imagefile:$PWD/tools/screenshots/photos/camera.jpg &
 python3 tools/screenshots/shots.py              # all scenes, writes docs/*.png
 python3 tools/screenshots/shots.py --only booth # some scenes (--list shows them)
 ```

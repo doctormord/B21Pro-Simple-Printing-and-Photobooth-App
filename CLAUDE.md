@@ -26,7 +26,10 @@ Everything else is checked in the emulator and on paper.
 - The debug console UI is built in code with hard-coded English strings; that is intentional.
 - `tools/screenshots/shots.py`: the README's screenshots, made in an emulator (Galaxy S25 display),
   driven by resource id and cut to the views a scene names. Run it after a UI change (needs the debug
-  APK, adb, ffmpeg). A new feature = a new scene function; a view without an id gets one in the layout.
+  APK, adb, ffmpeg, Pillow, and the emulator started with `-camera-back imagefile:` pointing at
+  `tools/screenshots/photos/camera.jpg`). A new feature = a new scene function; a view without an id
+  gets one in the layout. Only our own photos as subjects (`tools/screenshots/photos/`): no pictures of
+  unclear origin in the repo, and not the emulator's virtual room (it has a TV in it).
 - `tools/mkchart.py`: test chart generator; `TestChart.kt` is its Kotlin port. Keep them in sync.
 - `Dither.kt`: blue-noise map (built on first use) and Riemersma; the calibratable 1-bit looks are
   `CAL_LOOKS` in MainActivity, each with its own profile key. `ImageProcessor.MEASURED` are the ones

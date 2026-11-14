@@ -47,9 +47,14 @@ def candidates(gray):
     out = []
     for i in range(1, n):
         x, y, w, h, area = stats[i]
-        if area < total * 2e-5 or area > total * 0.01 or not 0.6 < w / h < 1.6:
+        if area < total * 2e-5 or area > total * 0.01:
             continue
-        if area / (w * h) > 0.8:
+        # Rotation-invariant square test, as in ChartReader.candidates: area = 6 * (var x + var y)
+        # for a solid square at any angle, and an inertia axis ratio of at most 1.6^2
+        m = cv2.moments((lab[y:y + h, x:x + w] == i).astype(np.uint8), True)
+        cxx = m["mu20"] / area; cyy = m["mu02"] / area; cxy = m["mu11"] / area
+        tr = cxx + cyy; d = ((cxx - cyy) ** 2 / 4 + cxy ** 2) ** 0.5
+        if area >= 0.85 * 6 * tr and tr / 2 + d <= 2.6 * (tr / 2 - d):
             out.append((area, cent[i]))
     return out
 

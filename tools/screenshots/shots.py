@@ -27,6 +27,7 @@ out or faked with files in the app's storage.
 import argparse
 import os
 import re
+import shlex
 import shutil
 import struct
 import subprocess
@@ -169,7 +170,7 @@ def scroll_top():
 
 def type_text(sel, text):
     tap(sel)
-    sh("input text " + text.replace(" ", "%s"))
+    sh("input text " + shlex.quote(text.replace(" ", "%s")))
     time.sleep(0.5)
     sh("input keyevent 4")   # closes the keyboard
     time.sleep(0.8)

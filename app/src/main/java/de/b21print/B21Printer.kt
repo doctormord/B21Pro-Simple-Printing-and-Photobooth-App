@@ -39,6 +39,11 @@ class B21Printer(
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connected?.completeExceptionally(Exception("Connection failed ($status)"))
                 pendingOp?.completeExceptionally(Exception("Disconnected"))
+                // Requests waiting for a reply fail now instead of running into their timeout
+                synchronized(waiters) {
+                    waiters.forEach { it.second.completeExceptionally(Exception("Disconnected")) }
+                    waiters.clear()
+                }
                 g.close()
                 gatt = null
                 onDisconnect()
@@ -197,22 +202,44 @@ class B21Printer(
     private suspend fun gattOp(start: () -> Boolean): Int = gattLock.withLock {
         val op = CompletableDeferred<Int>()
         pendingOp = op
-        if (!start()) throw Exception("GATT operation rejected")
-        withTimeout(5000) { op.await() }
+        try {
+            if (!start()) throw Exception("GATT operation rejected")
+            withTimeout(5000) { op.await() }
+        } finally {
+            if (pendingOp === op) pendingOp = null
+        }
     }
 
     suspend fun connect(device: BluetoothDevice) {
         val c = CompletableDeferred<Unit>()
         connected = c
-        gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+        val g = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+            ?: throw Exception("Bluetooth not available")
+        gatt = g
+        try {
+            setUp(g, c)
+        } catch (e: Throwable) {
+            // Timeout, wrong device or a cancelled connect: give the BLE client slot back. After
+            // close() no disconnect callback follows, so nothing else will release it.
+            if (gatt === g) gatt = null
+            ch = null
+            g.disconnect()
+            g.close()
+            throw e
+        }
+        log("Connected: ${device.name}")
+    }
+
+    private suspend fun setUp(g: BluetoothGatt, c: CompletableDeferred<Unit>) {
         withTimeout(15000) { c.await() }
-        val g = gatt ?: throw Exception("Not connected")
+        if (gatt !== g) throw Exception("Not connected")
         val characteristic = g.getService(Niimbot.SERVICE_UUID)?.getCharacteristic(Niimbot.CHAR_UUID)
             ?: throw Exception("Printer service not found. Is this a B21?")
         ch = characteristic
         gattOp { g.requestMtu(247) }
         g.setCharacteristicNotification(characteristic, true)
         val cccd = characteristic.getDescriptor(Niimbot.CCCD_UUID)
+            ?: throw Exception("Printer service incomplete (no notification descriptor)")
         gattOp {
             if (Build.VERSION.SDK_INT >= 33) {
                 g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == BluetoothGatt.GATT_SUCCESS
@@ -224,7 +251,6 @@ class B21Printer(
             }
         }
         request(Niimbot.CONNECT, intArrayOf(1))
-        log("Connected: ${device.name}")
     }
 
     fun disconnect() {
@@ -584,7 +610,8 @@ class B21Printer(
         val until = System.currentTimeMillis() + 60000
         var free = -1
         while (System.currentTimeMillis() < until) {
-            val s = runCatching { request(Niimbot.PRINT_STATUS, intArrayOf(1), 1000) }.getOrNull()
+            // No reply: firmware without the field. A lost connection is an error, not that.
+            val s = try { request(Niimbot.PRINT_STATUS, intArrayOf(1), 1000) } catch (e: Exception) { if (gatt == null) throw e; null }
             if (s == null || s.size < 6) return -1     // firmware without the field: carry on
             free = ((s[4].toInt() and 0xFF) shl 8) or (s[5].toInt() and 0xFF)
             if (free >= rows) return free

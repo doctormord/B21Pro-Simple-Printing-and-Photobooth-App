@@ -75,9 +75,19 @@ object Dither {
         val hist = DoubleArray(queue); var head = 0
         var s = 1
         while (s < maxOf(w, h)) s *= 2
-        for (d in 0 until s * s) {
-            val (x, y) = hilbert(s, d)
-            if (x >= w || y >= h) continue
+        var d = 0
+        while (d < s * s) {
+            val xy = hilbert(s, d)
+            val x = (xy ushr 32).toInt(); val y = xy.toInt()
+            if (x >= w || y >= h) {
+                // Steps kB² … (k+1)B² - 1 fill one aligned B × B square: skip the largest one that lies
+                // wholly outside the image (a long label otherwise walks a mostly empty square)
+                var b = 1
+                while (b < s && d % (4 * b * b) == 0 && ((x and -(2 * b)) >= w || (y and -(2 * b)) >= h)) b *= 2
+                d += b * b
+                continue
+            }
+            d++
             var err = 0.0
             for (k in 0 until queue) err += hist[(head + k) % queue] * weights[k]
             val i = y * w + x
@@ -90,7 +100,8 @@ object Dither {
     }
 
     // Position of step d on a Hilbert curve through an s × s square (s a power of two)
-    private fun hilbert(s: Int, d: Int): Pair<Int, Int> {
+    // (x in the upper, y in the lower 32 bits: no allocation per step)
+    private fun hilbert(s: Int, d: Int): Long {
         var x = 0; var y = 0; var t = d; var q = 1
         while (q < s) {
             val rx = 1 and (t / 2); val ry = 1 and (t xor rx)
@@ -101,6 +112,6 @@ object Dither {
             x += q * rx; y += q * ry
             t /= 4; q *= 2
         }
-        return x to y
+        return (x.toLong() shl 32) or y.toLong()
     }
 }

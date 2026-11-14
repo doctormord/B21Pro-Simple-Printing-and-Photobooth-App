@@ -338,8 +338,9 @@ paper, without a computer:
 The reading averages every photo pixel of a patch (and of the paper around it) in linear light; a
 dither pattern has only a few photo pixels per period, and sampling a few points of it would alias.
 The rectified chart in the dialog is averaged the same way. The debug console's *Calibration
-self-test* reads a synthetic photo of each chart (turned, tilted, blurred, with a light gradient,
-paper texture and noise) and compares the result with the real ink coverage: about 0.2 % rms.
+self-test* reads a synthetic photo of each chart (tilted, blurred, with a light gradient, paper
+texture and noise; once nearly straight and once turned by 40°) and compares the result with the real
+ink coverage: about 0.2 % rms.
 
 Gray uses the measured levels when diffusing (levels that print alike are simply skipped), 1-bit
 uses the measured table in place of the built-in one, and the preview follows both. Phone photos
@@ -505,8 +506,8 @@ the BLE characteristic and shows every reply. It also offers:
 - **Camera info**: per camera the facing, whether it has a depth output, which vendor extensions
   (bokeh, face retouch, ...) it offers and its physical cameras. Shows what a portrait mode in the
   booth could build on.
-- **Calibration self-test**: reads a synthetic photo of each calibration chart and reports how far
-  the reading is from the real ink coverage (see *Calibration*).
+- **Calibration self-test**: reads a synthetic photo of each calibration chart, nearly straight and
+  turned by 40°, and reports how far the reading is from the real ink coverage (see *Calibration*).
 - **Keep history of prints**: a switch; off = no recent prints and no recently printed signs.
 - **Heartbeat 2 / 3 / 4**: the other heartbeat requests; the replies are shown raw. Type 1 (battery,
   voltage, temperature) runs by itself and fills the battery line in the main window.

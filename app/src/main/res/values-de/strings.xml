@@ -183,6 +183,7 @@
     <string name="cal_pick">Galerie</string>
     <string name="cal_reading">Testbild wird ausgewertet …</string>
     <string name="cal_not_found">Testbild nicht gefunden. Alle vier Eckquadrate müssen im Foto sein.</string>
+    <string name="cal_photo_lost">Die Kalibrierung wurde geschlossen, während die Kamera offen war. Bitte erneut öffnen und das Foto noch einmal aufnehmen.</string>
     <string name="cal_result">Schwärzung je Stufe, 0 = Papier, 100 = dunkelste Stufe:\n%s</string>
     <string name="cal_name">Profilname</string>
     <string name="cal_save">Speichern</string>

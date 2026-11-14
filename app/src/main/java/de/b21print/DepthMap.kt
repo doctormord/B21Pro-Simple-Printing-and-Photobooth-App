@@ -30,8 +30,8 @@ class DepthMap(
 
         // photoW/photoH: the decoded photo (EXIF rotation applied). Null if there is no depth map.
         fun read(cr: ContentResolver, uri: Uri, photoW: Int, photoH: Int): DepthMap? = runCatching {
-            val raw = cr.openFileDescriptor(uri, "r")?.let { pfd ->
-                FileInputStream(pfd.fileDescriptor).channel.use { ch -> sefEntry(ch, ENTRY) }.also { pfd.close() }
+            val raw = cr.openFileDescriptor(uri, "r")?.use { pfd ->
+                FileInputStream(pfd.fileDescriptor).channel.use { ch -> sefEntry(ch, ENTRY) }
             } ?: return null
             val orientation = cr.openInputStream(uri)?.use {
                 ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -62,7 +62,8 @@ class DepthMap(
             val dirLen = tail.int
             if (String(ByteArray(4).also { tail.get(it) }, Charsets.US_ASCII) != "SEFT") return null
             val dirPos = size - 8 - dirLen
-            if (dirLen < 12 || dirPos < 0) return null
+            // A foreign file can end in "SEFT" by chance: no huge buffer for a nonsense length
+            if (dirLen !in 12..1_000_000 || dirPos < 0) return null
             val dir = read(dirPos, dirLen)
             if (String(ByteArray(4).also { dir.get(it) }, Charsets.US_ASCII) != "SEFH") return null
             dir.int // version

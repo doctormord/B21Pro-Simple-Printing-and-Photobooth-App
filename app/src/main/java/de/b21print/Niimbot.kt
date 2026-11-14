@@ -233,6 +233,15 @@ object Niimbot {
     // Firmware replies we care about (short packets, small LEN).
     private val FW_RESP = intArrayOf(0x90, 0x9A, 0x9D, 0x9E)
 
+    // CRC32 (big-endian) over CMD, chunk, LEN and DATA of the reply at i; the printer's replies carry
+    // the same checksum as our packets (checked against HCI captures of 2026-11-02)
+    private fun crcOk(buf: ByteArray, i: Int, len: Int): Boolean {
+        val crc = java.util.zip.CRC32().apply { update(buf, i + 2, 4 + len) }.value
+        var got = 0L
+        for (k in 0 until 4) got = (got shl 8) or (buf[i + 6 + len + k].toLong() and 0xFF)
+        return got == crc
+    }
+
     // Skips foreign packets (e.g. the normal 0xF6 ack) and resyncs at the next 55 55
     // instead of getting stuck on a wrong length byte.
     fun parseCrc32Packets(buf: ByteArray): Pair<List<Triple<Int, Int, ByteArray>>, ByteArray> {
@@ -255,7 +264,7 @@ object Niimbot {
             if (end > buf.size) {           // maybe incomplete: another header follows? otherwise wait
                 val n = nextHead(i + 2); if (n < 0) break else { i = n; continue }
             }
-            if (u(end - 2) == 0xAA && u(end - 1) == 0xAA) {
+            if (u(end - 2) == 0xAA && u(end - 1) == 0xAA && crcOk(buf, i, len)) {
                 val chunk = (u(i + 3) shl 8) or u(i + 4)
                 out.add(Triple(cmd, chunk, buf.copyOfRange(i + 6, i + 6 + len)))
                 i = end

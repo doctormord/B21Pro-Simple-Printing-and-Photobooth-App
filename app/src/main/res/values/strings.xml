@@ -196,6 +196,7 @@
     <string name="cal_pick">Gallery</string>
     <string name="cal_reading">Reading the chart…</string>
     <string name="cal_not_found">Chart not found. All four corner squares must be in the photo.</string>
+    <string name="cal_photo_lost">The calibration was closed while the camera was open. Open it again and take the photo once more.</string>
     <string name="cal_result">Darkness per step, 0 = paper, 100 = darkest step:\n%s</string>
     <string name="cal_name">Profile name</string>
     <string name="cal_save">Save</string>

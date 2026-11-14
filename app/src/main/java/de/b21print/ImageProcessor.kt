@@ -387,7 +387,7 @@ object ImageProcessor {
             val i = y * w + x
             val t = 1f - gray[i].coerceIn(0f, 255f) / 255f
             var l = 0
-            for (k in 1..maxLevel) if (abs(d[k] - t) < abs(d[l] - t)) l = k
+            for (k in 1..minOf(maxLevel, d.lastIndex)) if (abs(d[k] - t) < abs(d[l] - t)) l = k
             out[i] = l.toByte()
             val err = 255f * (d[l] - t)
             if (x + 1 < w) gray[i + 1] += err * 7 / 16

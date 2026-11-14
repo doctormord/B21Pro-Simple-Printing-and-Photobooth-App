@@ -89,22 +89,26 @@ object ChartReader {
         for (start in g.indices) {
             if (!dark[start] || seen[start]) continue
             var sp = 0; stack[sp++] = start; seen[start] = true
-            var n = 0; var sx = 0L; var sy = 0L
-            var x0 = w; var x1 = 0; var y0 = h; var y1 = 0
+            var n = 0; var sx = 0L; var sy = 0L; var sxx = 0L; var syy = 0L; var sxy = 0L
             while (sp > 0) {
                 val i = stack[--sp]
                 val x = i % w; val y = i / w
-                n++; sx += x; sy += y
-                if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y
-                for (j in intArrayOf(i - 1, i + 1, i - w, i + w)) {
-                    if (j < 0 || j >= g.size || seen[j] || !dark[j]) continue
-                    if ((j == i - 1 && x == 0) || (j == i + 1 && x == w - 1)) continue
-                    seen[j] = true; stack[sp++] = j
-                }
+                n++; sx += x; sy += y; sxx += x.toLong() * x; syy += y.toLong() * y; sxy += x.toLong() * y
+                if (x > 0 && dark[i - 1] && !seen[i - 1]) { seen[i - 1] = true; stack[sp++] = i - 1 }
+                if (x < w - 1 && dark[i + 1] && !seen[i + 1]) { seen[i + 1] = true; stack[sp++] = i + 1 }
+                if (y > 0 && dark[i - w] && !seen[i - w]) { seen[i - w] = true; stack[sp++] = i - w }
+                if (y < h - 1 && dark[i + w] && !seen[i + w]) { seen[i + w] = true; stack[sp++] = i + w }
             }
-            val bw = x1 - x0 + 1; val bh = y1 - y0 + 1
-            if (n < 12 || n > g.size * 0.02f || bw.toFloat() / bh !in 0.6f..1.6f) continue
-            if (n < 0.8f * bw * bh) continue
+            if (n < 12 || n > g.size * 0.02f) continue
+            // Square test from the second moments, so it holds at any rotation of the photo: a solid
+            // square has n = 6 · (var x + var y) at every angle (rings, frames, letters fall short),
+            // and the axis ratio of its inertia ellipse is 1 (aspect r gives r²; 1.6 is the old limit)
+            val mx = sx.toDouble() / n; val my = sy.toDouble() / n
+            val cxx = sxx.toDouble() / n - mx * mx; val cyy = syy.toDouble() / n - my * my
+            val cxy = sxy.toDouble() / n - mx * my
+            val tr = cxx + cyy
+            val dd = kotlin.math.sqrt((cxx - cyy) * (cxx - cyy) / 4 + cxy * cxy)
+            if (n < 0.85 * 6 * tr || tr / 2 + dd > 2.6 * (tr / 2 - dd)) continue
             out += Blob(n.toFloat() * s * s, (sx.toFloat() / n + 0.5f) * s, (sy.toFloat() / n + 0.5f) * s)
         }
         // Dark patches and text can qualify too; the score sorts them out, but cap the search

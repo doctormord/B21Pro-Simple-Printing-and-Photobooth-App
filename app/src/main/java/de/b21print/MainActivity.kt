@@ -144,6 +144,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // The camera app may outlive this process; its result then arrives in a new activity
+        @Suppress("DEPRECATION")
+        photoUri = savedInstanceState?.getParcelable("photoUri")
         chipPrinter = findViewById(R.id.chipPrinter)
         txtBattery = findViewById(R.id.txtBattery)
         txtDims = findViewById(R.id.txtDims)
@@ -456,6 +459,17 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.title).setOnLongClickListener { showDebugConsole(); true }
         buildLabelList()
         selectLabel(Labels.ALL.firstOrNull { it.name == prefs.getString("label", null) } ?: Labels.NB835)
+        if (selectedLabel.freestyle) {
+            suppressEdits = true
+            prefs.getString("freeW", null)?.let { editWidth.setText(it) }
+            prefs.getString("freeH", null)?.let { editHeight.setText(it) }
+            suppressEdits = false
+        }
+        // The first render may run before the stage has its size (no screen scaling, card unsized);
+        // render again whenever the stage size changes
+        (labelCard.parent as View).addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) scheduleRender()
+        }
         if (prefs.getBoolean("textMode", false)) toggleApp.check(R.id.modeAppText)
         // Printer and image survive rotation and theme changes; restored before the controls are
         // shown, or the depth section stayed hidden while its effect was still applied
@@ -482,6 +496,11 @@ class MainActivity : AppCompatActivity() {
         }
         updatePrinterChip()
         updateTemplateButton()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        photoUri?.let { outState.putParcelable("photoUri", it) }
     }
 
     override fun onDestroy() {
@@ -634,6 +653,7 @@ class MainActivity : AppCompatActivity() {
             selectLabel(Labels.FREESTYLE)
             switchInstant.isChecked = pol
         }
+        prefs.edit().putString("freeW", editWidth.text.toString()).putString("freeH", editHeight.text.toString()).apply()
         scheduleRender()
     }
 
@@ -814,7 +834,8 @@ class MainActivity : AppCompatActivity() {
         when (requestCode) {
             REQ_CAMERA -> photoUri?.let { loadImage(it) }
             REQ_GALLERY -> data?.data?.let { loadImage(it) }
-            REQ_CAL_CAMERA -> photoUri?.let { calPhoto?.invoke(it) }
+            // The calibration dialog does not survive the process being killed behind the camera
+            REQ_CAL_CAMERA -> photoUri?.let { u -> calPhoto?.invoke(u) ?: getString(R.string.cal_photo_lost).let { log(it); toast(it) } }
             REQ_BITMAP_FILE -> data?.data?.let { printBitmapFile(it) }
             REQ_CAL_GALLERY -> data?.data?.let { calPhoto?.invoke(it) }
             REQ_ENABLE_BT -> ensurePermissions { scanAndConnect() }

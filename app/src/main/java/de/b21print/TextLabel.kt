@@ -114,6 +114,7 @@ object TextLabel {
         for (lines in candidates(text)) {
             tp.textSize = 100f
             val widest = lines.maxOf { tp.measureText(it) }
+            if (widest <= 0f) continue      // only zero-width characters
             val fm = tp.fontMetrics
             val lineH = fm.descent - fm.ascent
             // Slanted text extends past the measured width
@@ -152,7 +153,8 @@ object TextLabel {
             )
             val code = runCatching { com.google.zxing.qrcode.encoder.Encoder.encode(text, level, hints) }.getOrNull() ?: continue
             val m = (avail / (code.matrix.width + 2 * QR_QUIET)).toInt()
-            if (chosen == null || m >= QR_MIN_MODULE) { chosen = code; module = m }
+            // Below the minimum on every level, the largest module wins
+            if (chosen == null || m > module || m >= QR_MIN_MODULE) { chosen = code; module = m }
             if (m >= QR_MIN_MODULE) break
         }
         val code = chosen ?: return

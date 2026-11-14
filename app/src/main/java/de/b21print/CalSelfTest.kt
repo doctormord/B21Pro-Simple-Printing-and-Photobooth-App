@@ -14,11 +14,16 @@ object CalSelfTest {
     private const val INK = 0.08f      // reflectance of a printed dot
     private const val SCALE_PX = 1000   // photo size
 
-    fun run(looks: List<Pair<String, ImageProcessor.Raster>>): List<String> = looks.map { (name, look) ->
-        runCatching { one(name, look) }.getOrElse { "$name: ${it.message}" }
+    // Each look twice: nearly straight, and turned by 40° (a label held at an angle; the corner
+    // squares then fill only about half of their bounding box)
+    fun run(looks: List<Pair<String, ImageProcessor.Raster>>): List<String> = looks.flatMap { (name, look) ->
+        listOf(0f, 40f).map { deg ->
+            val tag = if (deg == 0f) name else "$name ${deg.toInt()}°"
+            runCatching { one(tag, look, deg) }.getOrElse { "$tag: ${it.message}" }
+        }
     }
 
-    private fun one(name: String, look: ImageProcessor.Raster): String {
+    private fun one(name: String, look: ImageProcessor.Raster, turn: Float): String {
         val w = 591; val h = 591
         val lay = TestChart.calChart(w, h, false)
         val chart = TestChart.calibration(w, h, "SELF", look)
@@ -31,10 +36,12 @@ object CalSelfTest {
         }
         val truth = FloatArray(cov.size) { cov[it] / cov.last() }
 
-        // Chart → photo: a slightly tilted, keystoned quadrilateral
+        // Chart → photo: a slightly tilted, keystoned quadrilateral, turned about the middle and
+        // shrunk so the turned chart stays in the photo
+        val quad = floatArrayOf(110f, 130f, 930f, 95f, 950f, 925f, 90f, 940f)
+        if (turn != 0f) Matrix().apply { setRotate(turn, 520f, 520f); postScale(0.72f, 0.72f, 520f, 520f) }.mapPoints(quad)
         val m = Matrix().apply {
-            setPolyToPoly(floatArrayOf(0f, 0f, w.toFloat(), 0f, w.toFloat(), h.toFloat(), 0f, h.toFloat()), 0,
-                floatArrayOf(110f, 130f, 930f, 95f, 950f, 925f, 90f, 940f), 0, 4)
+            setPolyToPoly(floatArrayOf(0f, 0f, w.toFloat(), 0f, w.toFloat(), h.toFloat(), 0f, h.toFloat()), 0, quad, 0, 4)
         }
         val inv = Matrix(); m.invert(inv)
         val iv = FloatArray(9).also { inv.getValues(it) }

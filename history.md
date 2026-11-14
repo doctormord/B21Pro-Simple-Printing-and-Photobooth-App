@@ -4,6 +4,47 @@ How the app got to its current state, with the reasoning behind the less obvious
 first. Measurements come from prints on a B21 Pro and from an offline Python replica of the image
 pipeline.
 
+## 1.5.4 (2026-11-14)
+
+Fixes from an outside code review, each checked against the code first.
+
+### Calibration photos taken at an angle
+The chart reader looks for its four corner squares as dark blobs and kept only those that filled at
+least 80 % of their axis-aligned bounding box. A square turned by 20° fills only 59 % of that box, at
+45° half, so a label held at an angle was reported as "chart not found" although the README promises
+any orientation. The self-test never saw it: its synthetic photo is turned by only 2.5°. Lowering the
+threshold (to ~0.42, as suggested) would also have let rings and frames through (0.44). The test now
+uses the blob's second moments, which do not change with rotation: a solid square has
+area = 6 · (var x + var y) at any angle (accepted from 85 %; L shapes reach 82 %, rings 47 %), and the
+axis ratio of its inertia ellipse stays below 1.6² (the old aspect limit). The self-test now reads every
+chart a second time turned by 40°: all looks are found with 0.1–0.2 % rms, the old filter found none.
+`tools/calib.py` uses the same test.
+
+### Bluetooth
+- A connect that timed out, hit the wrong device or was cancelled left the `BluetoothGatt` open; it is
+  closed now (Android has only a few BLE client slots, and a failed connect would not release its own).
+- When the printer drops the connection, requests waiting for a reply fail at once instead of running
+  into their timeout (up to 15 s during a print). The buffer wait no longer takes a lost connection
+  for "firmware without the status field".
+- The firmware flasher checks the CRC32 of the printer's replies, not only header and trailer. The
+  replies carry the same checksum as our packets; checked against HCI captures before relying on it.
+- A printer without the notification descriptor gives a clear error instead of a crash on Android < 13.
+
+### Smaller fixes
+- A photo taken with the camera app is no longer lost when Android kills the app behind the camera
+  (the photo's URI survives in the saved state). The calibration dialog cannot be rebuilt that way;
+  the app says so and asks to take the photo again.
+- The freestyle label size survives a restart.
+- The first preview could be drawn before the stage had its size, scaled bilinearly with moiré and with
+  an unsized card; the preview renders again when the stage size changes.
+- Riemersma walked the whole power-of-two square of the Hilbert curve: 16.7 million steps for a
+  50 × 200 mm label, nine in ten outside the image. Squares wholly outside are now skipped, with the
+  same dot order (unit test against the full walk).
+- QR codes too long for 3-dot modules on every error correction level take the level with the largest
+  module, not the first one tried. Text of only zero-width characters no longer divides by zero.
+- Depth maps: the file is closed on every path, and a nonsense directory length is rejected before
+  allocating.
+
 ## 1.5.3 (2026-11-12)
 
 ### Open-source licenses

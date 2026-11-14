@@ -94,4 +94,17 @@ class NiimbotTest {
         assert(black.contentEquals(k))
         assert(ByteArray(w * h) { if (red[it].toInt() != 0 && black[it].toInt() == 0) 1 else 0 }.contentEquals(r))
     }
+
+    @Test
+    fun firmwareRepliesCheckCrc() {
+        fun bytes(h: String) = h.split(" ").map { it.toInt(16).toByte() }.toByteArray()
+        // Replies from an HCI capture (2026-11-02e): request CRC, request chunk 4
+        val good = bytes("55 55 90 00 00 01 01 79 38 d1 da aa aa") + bytes("55 55 9a 00 04 01 01 34 81 61 a7 aa aa")
+        val (p, rest) = Niimbot.parseCrc32Packets(good)
+        assertEquals(listOf(0x90 to 0, 0x9A to 4), p.map { it.first to it.second })
+        assertEquals(0, rest.size)
+        // One flipped data bit: dropped, the next packet still parses
+        val bad = bytes("55 55 9a 00 04 01 03 34 81 61 a7 aa aa") + bytes("55 55 90 00 00 01 01 79 38 d1 da aa aa")
+        assertEquals(listOf(0x90), Niimbot.parseCrc32Packets(bad).first.map { it.first })
+    }
 }
